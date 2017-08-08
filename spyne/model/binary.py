@@ -113,7 +113,7 @@ class ByteArray(SimpleModel):
     def from_base64(cls, value):
         joiner = type(value)()
         try:
-            return (b64decode(joiner.join(value)),)
+            return [b64decode(joiner.join(value))]
         except TypeError:
             raise ValidationError(value)
 
@@ -126,16 +126,7 @@ class ByteArray(SimpleModel):
         #FIXME: Find out why we need to do this.
         if isinstance(value, six.text_type):
             value = value.encode('utf8')
-        try:
-            return (urlsafe_b64decode(_bytes_join(value)),)
-
-        except TypeError as e:
-            logger.exception(e)
-
-            if len(value) > 100:
-                raise ValidationError(value)
-            else:
-                raise ValidationError(value[:100] + "(...)")
+        return [urlsafe_b64decode(_bytes_join(value))]
 
     @classmethod
     def to_hex(cls, value):
@@ -143,18 +134,18 @@ class ByteArray(SimpleModel):
 
     @classmethod
     def from_hex(cls, value):
-        return (unhexlify(_bytes_join(value)),)
+        return [unhexlify(_bytes_join(value))]
 
 
 binary_encoding_handlers = {
-    None: b''.join,
+    None: ''.join,
     BINARY_ENCODING_HEX: ByteArray.to_hex,
     BINARY_ENCODING_BASE64: ByteArray.to_base64,
     BINARY_ENCODING_URLSAFE_BASE64: ByteArray.to_urlsafe_base64,
 }
 
 binary_decoding_handlers = {
-    None: lambda x: (x,),
+    None: lambda x: [x],
     BINARY_ENCODING_HEX: ByteArray.from_hex,
     BINARY_ENCODING_BASE64: ByteArray.from_base64,
     BINARY_ENCODING_URLSAFE_BASE64: ByteArray.from_urlsafe_base64,
@@ -241,14 +232,14 @@ class _Value(ComplexModel):
                 self.handle.write(d)
 
         elif self.handle is not None:
-            self.data = [mmap(self.handle.fileno(), 0)]  # 0 = whole file
+            self.data = mmap(self.handle.fileno(), 0)  # 0 = whole file
 
         elif self.path is not None:
             if not isfile(self.path):
                 logger.error("File path in %r not found", self)
 
             self.handle = open(self.path, 'rb')
-            self.data = [mmap(self.handle.fileno(), 0, access=ACCESS_READ)]
+            self.data = mmap(self.handle.fileno(), 0, access=ACCESS_READ)
             self.abspath = abspath(self.path)
             self.name = self.path = basename(self.path)
 

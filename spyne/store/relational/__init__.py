@@ -31,5 +31,3 @@ from spyne.store.relational.document import PGXml, PGObjectXml, PGHtml
 from spyne.store.relational.document import PGJson, PGObjectJson, PGFileJson
 from spyne.store.relational.simple import PGLTree, PGLQuery, PGLTxtQuery
 from spyne.store.relational.spatial import PGGeometry
-
-from spyne.store.relational import override

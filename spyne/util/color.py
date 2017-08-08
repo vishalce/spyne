@@ -19,7 +19,6 @@
 
 from __future__ import absolute_import
 
-
 try:
     import colorama
     R = lambda s: ''.join((colorama.Fore.RED, colorama.Style.BRIGHT, s,
@@ -28,11 +27,6 @@ try:
                                                     colorama.Style.RESET_ALL))
     B = lambda s: ''.join((colorama.Fore.BLUE, colorama.Style.BRIGHT, s,
                                                     colorama.Style.RESET_ALL))
-
-    DARK_R = lambda s: ''.join((colorama.Fore.RED, s, colorama.Style.RESET_ALL))
-    DARK_G = lambda s: ''.join((colorama.Fore.GREEN, s, colorama.Style.RESET_ALL))
-    DARK_B = lambda s: ''.join((colorama.Fore.BLUE, s, colorama.Style.RESET_ALL))
-
     YEL = lambda s: ''.join((colorama.Fore.YELLOW, colorama.Style.BRIGHT, s,
                                                     colorama.Style.RESET_ALL))
     MAG = lambda s: ''.join((colorama.Fore.MAGENTA, colorama.Style.BRIGHT, s,
@@ -44,9 +38,6 @@ except ImportError:
     R = lambda s: s
     G = lambda s: s
     B = lambda s: s
-    DARK_R = lambda s: s
-    DARK_G = lambda s: s
-    DARK_B = lambda s: s
     YEL = lambda s: s
     MAG = lambda s: s
     CYA = lambda s: s
@@ -55,9 +46,6 @@ if __name__ == '__main__':
     print(R("RED"))
     print(G("GREEN"))
     print(B("BLUE"))
-    print(DARK_R("DARK_RED"))
-    print(DARK_G("DARK_GREEN"))
-    print(DARK_B("DARK_BLUE"))
     print(YEL("YELLOW"))
     print(MAG("MAGENTA"))
     print(CYA("CYAN"))

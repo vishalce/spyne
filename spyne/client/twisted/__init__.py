@@ -20,7 +20,6 @@
 """The Twisted Http Client transport."""
 
 from spyne import __version__ as VERSION
-from spyne.util import six
 
 from spyne.client import RemoteService
 from spyne.client import RemoteProcedureBase
@@ -41,8 +40,7 @@ from twisted.web.http_headers import Headers
 
 
 class _Producer(object):
-    if six.PY2:
-        implements(IBodyProducer)
+    implements(IBodyProducer)
 
     _deferred = None
 

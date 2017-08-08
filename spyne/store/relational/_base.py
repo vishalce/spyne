@@ -239,8 +239,7 @@ def _get_sqlalchemy_type(cls):
         return retval
 
 
-def _get_col_o2o(parent, k, v, fk_col_name, deferrable=None, initially=None,
-                                                  ondelete=None, onupdate=None):
+def _get_col_o2o(parent, k, v, fk_col_name, deferrable=None, initially=None):
     """Gets key and child type and returns a column that points to the primary
     key of the child.
     """
@@ -266,14 +265,12 @@ def _get_col_o2o(parent, k, v, fk_col_name, deferrable=None, initially=None,
 
     fk = ForeignKey('%s.%s' % (v.Attributes.table_name, pk_key), use_alter=True,
           name='%s_%s_fkey' % (v.Attributes.table_name, fk_col_name),
-          deferrable=deferrable, initially=initially,
-          ondelete=ondelete, onupdate=onupdate)
+          deferrable=deferrable, initially=initially)
 
     return Column(fk_col_name, pk_sqla_type, fk, *col_args, **col_kwargs)
 
 
-def _get_col_o2m(cls, fk_col_name, deferrable=None, initially=None,
-                                                  ondelete=None, onupdate=None):
+def _get_col_o2m(cls, fk_col_name, deferrable=None, initially=None):
     """Gets the parent class and returns a column that points to the primary key
     of the parent.
 
@@ -299,8 +296,7 @@ def _get_col_o2m(cls, fk_col_name, deferrable=None, initially=None,
     yield [(fk_col_name, pk_sqla_type)]
 
     fk = ForeignKey('%s.%s' % (cls.Attributes.table_name, pk_key),
-                                     deferrable=deferrable, initially=initially,
-                                           ondelete=ondelete, onupdate=onupdate)
+                                     deferrable=deferrable, initially=initially)
     col = Column(fk_col_name, pk_sqla_type, fk, *col_args, **col_kwargs)
 
     yield col
@@ -308,18 +304,16 @@ def _get_col_o2m(cls, fk_col_name, deferrable=None, initially=None,
 
 def _get_cols_m2m(cls, k, child, fk_left_col_name, fk_right_col_name,
                   fk_left_deferrable, fk_left_initially,
-                  fk_right_deferrable, fk_right_initially,
-                  fk_left_ondelete, fk_left_onupdate,
-                  fk_right_ondelete, fk_right_onupdate):
+                  fk_right_deferrable, fk_right_initially):
     """Gets the parent and child classes and returns foreign keys to both
     tables. These columns can be used to create a relation table."""
 
     col_info, left_col = _get_col_o2m(cls, fk_left_col_name,
-                     ondelete=fk_left_ondelete, onupdate=fk_left_onupdate,
-                     deferrable=fk_left_deferrable, initially=fk_left_initially)
+                                                deferrable=fk_left_deferrable,
+                                                initially=fk_left_initially)
     right_col = _get_col_o2o(cls, k, child, fk_right_col_name,
-                   ondelete=fk_right_ondelete, onupdate=fk_right_onupdate,
-                   deferrable=fk_right_deferrable, initially=fk_right_initially)
+                                               deferrable=fk_right_deferrable,
+                                               initially=fk_right_initially)
     left_col.primary_key = right_col.primary_key = True
     return left_col, right_col
 
@@ -467,9 +461,7 @@ def _gen_array_m2m(cls, props, k, child, p):
 
     col_own, col_child = _get_cols_m2m(cls, k, child, p.left, p.right,
                                     p.fk_left_deferrable, p.fk_left_initially,
-                                    p.fk_right_deferrable, p.fk_right_initially,
-                                    p.fk_left_ondelete, p.fk_left_onupdate,
-                                    p.fk_right_ondelete, p.fk_right_onupdate)
+                                    p.fk_right_deferrable, p.fk_right_initially)
 
     p.left = col_own.key
     p.right = col_child.key
@@ -501,36 +493,15 @@ def _gen_array_m2m(cls, props, k, child, p):
         (col_pk_key, _), = get_pk_columns(cls)
         col_pk = own_t.c[col_pk_key]
 
-        rel_kwargs = dict(
-            lazy=p.lazy,
-            backref=p.backref,
-            cascade=p.cascade,
-            order_by=p.order_by,
-            secondary=rel_t,
-            primaryjoin=(col_pk == rel_t.c[col_own.key]),
-            secondaryjoin=(col_pk == rel_t.c[col_child.key]),
-            back_populates=p.back_populates,
-        )
-
-        if p.single_parent is not None:
-            rel_kwargs['single_parent'] = p.single_parent
-
-        props[k] = relationship(child, **rel_kwargs)
-
+        props[k] = relationship(child, secondary=rel_t, backref=p.backref,
+                back_populates=p.back_populates, cascade=p.cascade, lazy=p.lazy,
+                primaryjoin=(col_pk == rel_t.c[col_own.key]),
+                secondaryjoin=(col_pk == rel_t.c[col_child.key]),
+                order_by=p.order_by)
     else:
-        rel_kwargs = dict(
-            secondary=rel_t,
-            backref=p.backref,
-            back_populates=p.back_populates,
-            cascade=p.cascade,
-            lazy=p.lazy,
-            order_by=p.order_by
-        )
-
-        if p.single_parent is not None:
-            rel_kwargs['single_parent'] = p.single_parent
-
-        props[k] = relationship(child, **rel_kwargs)
+        props[k] = relationship(child, secondary=rel_t, backref=p.backref,
+                            back_populates=p.back_populates, cascade=p.cascade,
+                                               lazy=p.lazy, order_by=p.order_by)
 
 
 def _gen_array_simple(cls, props, k, child_cust, p):
@@ -538,9 +509,8 @@ def _gen_array_simple(cls, props, k, child_cust, p):
     metadata = cls.Attributes.sqla_metadata
 
     # get left (fk) column info
-    _gen_col = _get_col_o2m(cls, p.left,
-                 ondelete=p.fk_left_ondelete, onupdate=p.fk_left_onupdate,
-                 deferrable=p.fk_left_deferrable, initially=p.fk_left_initially)
+    _gen_col = _get_col_o2m(cls, p.left, deferrable=p.fk_left_deferrable,
+                                                  initially=p.fk_left_initially)
     col_info = next(_gen_col) # gets the column name
     # FIXME: Add support for multi-column primary keys.
     p.left, child_left_col_type = col_info[0]
@@ -609,9 +579,8 @@ def _gen_array_simple(cls, props, k, child_cust, p):
 
 
 def _gen_array_o2m(cls, props, k, child, child_cust, p):
-    _gen_col = _get_col_o2m(cls, p.right,
-               ondelete=p.fk_right_ondelete, onupdate=p.fk_right_onupdate,
-               deferrable=p.fk_right_deferrable, initially=p.fk_right_initially)
+    _gen_col = _get_col_o2m(cls, p.right, deferrable=p.fk_right_deferrable,
+                                                 initially=p.fk_right_initially)
     col_info = next(_gen_col)  # gets the column name
     p.right, col_type = col_info[0]  # FIXME: Add support for multi-column primary keys.
 
@@ -645,20 +614,9 @@ def _gen_array_o2m(cls, props, k, child, child_cust, p):
         child_t.append_column(col)
         child.__mapper__.add_property(col.name, col)
 
-
-    rel_kwargs = dict(
-        lazy=p.lazy,
-        backref=p.backref,
-        cascade=p.cascade,
-        order_by=p.order_by,
-        foreign_keys=[col],
-        back_populates=p.back_populates,
-    )
-
-    if p.single_parent is not None:
-        rel_kwargs['single_parent'] = p.single_parent
-
-    props[k] = relationship(child, **rel_kwargs)
+    props[k] = relationship(child, foreign_keys=[col], backref=p.backref,
+                             back_populates=p.back_populates, cascade=p.cascade,
+                                               lazy=p.lazy, order_by=p.order_by)
 
 
 def _is_array(v):
@@ -701,9 +659,8 @@ def _add_complex_type_as_table(cls, props, table, k, v, p, col_args, col_kwargs)
         assert p.right is None, "'right' is ignored in a one-to-one " \
                                 "relationship"
 
-        col = _get_col_o2o(cls, k, v, p.left,
-                 ondelete=p.fk_left_ondelete, onupdate=p.fk_left_onupdate,
-                 deferrable=p.fk_left_deferrable, initially=p.fk_left_initially)
+        col = _get_col_o2o(cls, k, v, p.left, deferrable=p.fk_left_deferrable,
+                                              initially=p.fk_left_initially)
         p.left = col.name
 
         if col.name in table.c:
@@ -719,8 +676,6 @@ def _add_complex_type_as_table(cls, props, table, k, v, p, col_args, col_kwargs)
             order_by=p.order_by,
             back_populates=p.back_populates,
         )
-        if p.single_parent is not None:
-            rel_kwargs['single_parent'] = p.single_parent
 
         if real_v is (cls.__orig__ or cls):
             (pk_col_name, pk_col_type), = get_pk_columns(cls)

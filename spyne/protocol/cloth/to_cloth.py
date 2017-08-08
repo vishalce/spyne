@@ -67,7 +67,6 @@ class ClothParserMixin(object):
     ID_ATTR_NAME = 'spyne-id'
     DATA_TAG_NAME = 'spyne-data'
     ROOT_ATTR_NAME = 'spyne-root'
-    TAGBAG_ATTR_NAME = 'spyne-tagbag'
 
     @classmethod
     def from_xml_cloth(cls, cloth):
@@ -93,16 +92,11 @@ class ClothParserMixin(object):
         self._root_cloth = None
 
         self._mrpc_cloth = self._root_cloth = None
+        if isinstance(cloth, string_types):
+            cloth = self._parse_file(cloth, cloth_parser)
 
         if cloth is None:
             return
-
-        elif isinstance(cloth, string_types):
-            cloth = self._parse_file(cloth, cloth_parser)
-
-        else:
-            # because if we deepcopy just the cloth doctype is lost
-            pass#cloth = deepcopy(cloth.getroottree()).getroot()
 
         q = "//*[@%s]" % self.ROOT_ATTR_NAME
         elts = cloth.xpath(q)
@@ -123,7 +117,7 @@ class ClothParserMixin(object):
 
         elif len(retval) == 1:
             retval = retval[0]
-            next(retval.iterancestors()).remove(retval)
+            retval.iterancestors().next().remove(retval)
             return retval
 
 
@@ -164,8 +158,8 @@ class ToClothMixin(OutProtocolBase, ClothParserMixin):
                 continue  # don't send grandchildren
 
             if id(elt) in ids:  # FIXME: this check should be safe to remove
-                logger_c.debug("Don't send what's already been sent")
-                continue  # don't send what's already been sent
+                logger_c.debug("Don't send what's already sent")
+                continue  # don't send what's already sent
 
             ids.add(id(elt))
             yield elt
@@ -185,10 +179,6 @@ class ToClothMixin(OutProtocolBase, ClothParserMixin):
         retval = elt.xpath('//*[@id="%s"]' % what)
         logger_c.debug("id=%r got %r", what, retval)
         return retval
-
-    @classmethod
-    def _is_tagbag(cls, elt):
-        return cls.TAGBAG_ATTR_NAME in elt.attrib
 
     @staticmethod
     def _methods(cls, inst):
@@ -296,7 +286,6 @@ class ToClothMixin(OutProtocolBase, ClothParserMixin):
                     logger_c.debug("\tskip  anc prevsibl %s %r",
                                                             elt.tag, elt.attrib)
                     continue
-
                 logger_c.debug("\twrite anc prevsibl %s %r 0x%x",
                                                    elt.tag, elt.attrib, id(elt))
                 parent.write(elt)
@@ -325,12 +314,9 @@ class ToClothMixin(OutProtocolBase, ClothParserMixin):
         for elt in prevsibls:
             if elt is last_elt:
                 continue
-
             if id(elt) in tags:
-                logger_c.debug("\tskip  cloth prevsibl %s %r",
-                                                            elt.tag, elt.attrib)
+                logger_c.debug("\tskip  cloth prevsibl %s %r",elt.tag, elt.attrib)
                 continue
-
             logger_c.debug("\twrite cloth prevsibl %s %r", elt.tag, elt.attrib)
             parent.write(elt)
 
@@ -479,19 +465,19 @@ class ToClothMixin(OutProtocolBase, ClothParserMixin):
             if cls.Attributes.min_occurs > 0:
                 parent.write(cloth)
 
-            return
+        else:
+            if not from_arr and cls.Attributes.max_occurs > 1:
+                return self.array_to_cloth(ctx, cls, inst, cloth, parent,
+                                                                      name=name)
 
-        if not from_arr and cls.Attributes.max_occurs > 1:
-            return self.array_to_cloth(ctx, cls, inst, cloth, parent, name=name)
+            handler = self.rendering_handlers[cls]
 
-        handler = self.rendering_handlers[cls]
+            identifier = "%s.%s" % (prot_name, handler.__name__)
+            logger_s.debug("Writing %s using %s for %s. Inst: %r", name,
+                                       identifier, cls.get_type_name(),
+                                       log_repr(inst, cls, from_array=from_arr))
 
-        identifier = "%s.%s" % (prot_name, handler.__name__)
-        logger_s.debug("Writing %s using %s for %s. Inst: %r", name,
-                                   identifier, cls.get_type_name(),
-                                   log_repr(inst, cls, from_array=from_arr))
-
-        retval = handler(ctx, cls, inst, cloth, parent, name=name)
+            retval = handler(ctx, cls, inst, cloth, parent, name=name)
 
         return retval
 
@@ -547,20 +533,9 @@ class ToClothMixin(OutProtocolBase, ClothParserMixin):
         for elt in self._get_elts(cloth, "mrpc"):
             self._actions_to_cloth(ctx, cls, inst, elt)
 
-        if self._is_tagbag(cloth):
-            logger_c.debug("%r(%r) IS a tagbag", cloth, cloth.attrib)
-            elts = self._get_elts(cloth)
-        else:
-            logger_c.debug("%r(%r) is NOT a tagbag", cloth, cloth.attrib)
-            elts = self._get_outmost_elts(cloth)
-
-        # it's actually an odict but that's irrelevant here.
-        fti_check = dict(fti.items())
-
-        for i, elt in enumerate(elts):
+        for i, elt in enumerate(self._get_outmost_elts(cloth)):
             k = elt.attrib[self.ID_ATTR_NAME]
             v = fti.get(k, None)
-            fti_check.pop(k, None)
 
             if v is None:
                 logger_c.warning("elt id %r not in %r", k, cls)
@@ -589,9 +564,6 @@ class ToClothMixin(OutProtocolBase, ClothParserMixin):
                         ret.throw(e)
                     except StopIteration:
                         pass
-
-        if len(fti_check) > 0:
-            logger_s.debug("Skipping the following: %r", fti)
 
     @coroutine
     def array_to_cloth(self, ctx, cls, inst, cloth, parent, name=None, **kwargs):

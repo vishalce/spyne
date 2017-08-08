@@ -17,10 +17,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 #
 
+import unittest
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-import unittest
+from spyne.util.six import BytesIO
 
 import msgpack
 
@@ -35,7 +36,6 @@ from spyne.model.complex import ComplexModel
 from spyne.model.primitive import Unicode
 from spyne.protocol.msgpack import MessagePackDocument
 from spyne.protocol.msgpack import MessagePackRpc
-from spyne.util.six import BytesIO
 from spyne.server import ServerBase
 from spyne.server.wsgi import WsgiApplication
 from spyne.test.protocol._test_dictdoc import TDictDocumentTest
@@ -43,10 +43,7 @@ from spyne.test.protocol._test_dictdoc import TDictDocumentTest
 from spyne.test.test_service import start_response
 
 
-# apply spyne defaults to test unpacker
-TestMessagePackDocument  = TDictDocumentTest(msgpack, MessagePackDocument,
-                                          loads_kwargs=dict(use_list=False))
-
+TestMessagePackDocument  = TDictDocumentTest(msgpack, MessagePackDocument)
 
 class TestMessagePackRpc(unittest.TestCase):
     def test_invalid_input(self):
@@ -62,7 +59,7 @@ class TestMessagePackRpc(unittest.TestCase):
         server = ServerBase(app)
 
         initial_ctx = MethodContext(server, MethodContext.SERVER)
-        initial_ctx.in_string = [b'\xdf']  # Invalid input
+        initial_ctx.in_string = ['\xdf']  # Invalid input
         ctx, = server.generate_contexts(initial_ctx)
         assert ctx.in_error.faultcode == 'Client.MessagePackDecodeError'
 
@@ -87,10 +84,11 @@ class TestMessagePackRpc(unittest.TestCase):
         application = Application([Service],
             in_protocol=MessagePackRpc(),
             out_protocol=MessagePackRpc(ignore_wrappers=False),
-            name='Service', tns='tns')
+            name='Service', tns='tns'
+        )
         server = WsgiApplication(application)
 
-        input_string = msgpack.packb([0, 0, "get_values", [["a", "c"]]])
+        input_string = msgpack.packb([0,0,"get_values", [["a","c"]] ])
         input_stream = BytesIO(input_string)
 
         ret = server({

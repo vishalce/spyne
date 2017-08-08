@@ -321,12 +321,10 @@ class WsgiApplication(HttpBase):
                 p_ctx.out_protocol.fault_to_http_response_code(error)
 
         self.get_out_string(p_ctx)
-
-        # consume the generator to get the length
-        p_ctx.out_string = list(p_ctx.out_string)
+        p_ctx.out_string = [b''.join(p_ctx.out_string)]
 
         p_ctx.transport.resp_headers['Content-Length'] = \
-                                    str(sum((len(s) for s in p_ctx.out_string)))
+                                                   str(len(p_ctx.out_string[0]))
         self.event_manager.fire_event('wsgi_exception', p_ctx)
 
         start_response(p_ctx.transport.resp_code,

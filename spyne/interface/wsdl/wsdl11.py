@@ -396,7 +396,8 @@ class Wsdl11(XmlSchema):
                     soap_header = SubElement(input, WSDL11_SOAP('header'))
                     soap_header.set('use', 'literal')
                     soap_header.set('message', '%s:%s' % (
-                                header.get_namespace_prefix(self.interface),
+#                                header.get_namespace_prefix(self.interface),
+				'tns',
                                 in_header_message_name))
                     soap_header.set('part', header.get_type_name())
 
@@ -428,7 +429,8 @@ class Wsdl11(XmlSchema):
                         soap_header = SubElement(output, WSDL11_SOAP("header"))
                         soap_header.set('use', 'literal')
                         soap_header.set('message', '%s:%s' % (
-                                header.get_namespace_prefix(self.interface),
+#                                header.get_namespace_prefix(self.interface),
+				'tns',
                                 out_header_message_name))
                         soap_header.set('part', header.get_type_name())
 

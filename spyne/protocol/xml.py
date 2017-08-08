@@ -622,12 +622,14 @@ class XmlDocument(SubXmlBase):
             return
 
         elif issubclass(cls, XmlData):
-            parent.attrib.update(NIL_ATTR)
+	    pass
+#            parent.attrib.update(NIL_ATTR)
+
 
         else:
             elt = self._gen_tag(cls, ns, name, **kwargs)
-            elt.attrib.update(NIL_ATTR)
-            _append(parent, elt)
+#            elt.attrib.update(NIL_ATTR)
+#            _append(parent, elt)
 
     def null_from_element(self, ctx, cls, element):
         return None
@@ -726,7 +728,7 @@ class XmlDocument(SubXmlBase):
             for k, v in cls._type_info.items():
                 try:
                     subvalue = getattr(inst, k, None)
-                except:  # e.g. SqlAlchemy could throw NoSuchColumnError
+                except: # e.g. SqlAlchemy could throw NoSuchColumnError
                     subvalue = None
 
                 # This is a tight loop, so enable this only when necessary.
@@ -750,7 +752,7 @@ class XmlDocument(SubXmlBase):
                             if ret is not None:
                                 try:
                                     while True:
-                                        sv2 = (yield)  # may throw Break
+                                        sv2 = (yield) # may throw Break
                                         ret.send(sv2)
 
                                 except Break:
@@ -767,7 +769,7 @@ class XmlDocument(SubXmlBase):
                             if ret is not None:
                                 try:
                                     while True:
-                                        sv2 = (yield)  # may throw Break
+                                        sv2 = (yield) # may throw Break
                                         ret.send(sv2)
 
                                 except Break:
@@ -776,8 +778,7 @@ class XmlDocument(SubXmlBase):
                                     except StopIteration:
                                         pass
 
-                # Don't include empty values for
-                # non-nillable optional attributes.
+                # Don't include empty values for non-nillable optional attributes.
                 elif subvalue is not None or v.Attributes.min_occurs > 0:
                     ret = self.to_parent(ctx, v, subvalue, parent, sub_ns,
                                                                        sub_name)

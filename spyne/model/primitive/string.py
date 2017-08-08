@@ -17,6 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 #
 
+import sys
 import decimal
 import uuid
 
@@ -110,7 +111,7 @@ class Unicode(SimpleModel):
 class String(Unicode):
     pass
 
-if not six.PY2:
+if sys.version > '3':
     String = Unicode
 
 

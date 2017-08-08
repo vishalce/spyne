@@ -70,17 +70,17 @@ class TestString(unittest.TestCase):
     def test_without_content_type(self):
         headers = None
         ret = call_wsgi_app_kwargs(self.app, 'echo_string', headers, s="string")
-        assert ret == b'string'
+        assert ret == 'string'
 
     def test_without_encoding(self):
         headers = {'CONTENT_TYPE':'text/plain'}
         ret = call_wsgi_app_kwargs(self.app, 'echo_string', headers, s="string")
-        assert ret == b'string'
+        assert ret == 'string'
 
     def test_with_encoding(self):
         headers = {'CONTENT_TYPE':'text/plain; charset=utf8'}
         ret = call_wsgi_app_kwargs(self.app, 'echo_string', headers, s="string")
-        assert ret == b'string'
+        assert ret == 'string'
 
 
 class TestSimpleDictDocument(unittest.TestCase):
@@ -418,7 +418,7 @@ class Test(unittest.TestCase):
 
         ctx = _test([SomeService], '&ccm.i=1&ccm.s=s&ccm.c.i=3&ccm.c.s=cs')
 
-        assert ctx.out_string[0] == b"CCM(i=1, c=CM(i=3, s='cs'), s='s')"
+        assert ctx.out_string[0] == "CCM(i=1, c=CM(i=3, s='cs'), s='s')"
 
     def test_simple_array(self):
         class SomeService(ServiceBase):
@@ -427,7 +427,7 @@ class Test(unittest.TestCase):
                 return '\n'.join(s)
 
         ctx = _test([SomeService], '&s=1&s=2')
-        assert b''.join(ctx.out_string) == b'1\n2'
+        assert ''.join(ctx.out_string) == '1\n2'
 
     def test_complex_array(self):
         class CM(ComplexModel):
@@ -446,10 +446,10 @@ class Test(unittest.TestCase):
             '&cs[1].i=2&cs[1].s=y'
             '&cs[2].i=3&cs[2].s=z')
 
-        assert b''.join(ctx.out_string) == \
-           b"CM(i=1, s='x')\n" \
-           b"CM(i=2, s='y')\n" \
-           b"CM(i=3, s='z')"
+        assert ''.join(ctx.out_string) == \
+           "CM(i=1, s='x')\n" \
+           "CM(i=2, s='y')\n" \
+           "CM(i=3, s='z')"
 
     def test_complex_array_empty(self):
         class CM(ComplexModel):
@@ -465,7 +465,7 @@ class Test(unittest.TestCase):
 
         ctx = _test([SomeService], 'cs=empty')
 
-        assert b''.join(ctx.out_string) == b'[]'
+        assert ''.join(ctx.out_string) == '[]'
 
     def test_complex_object_empty(self):
         class CM(ComplexModel):
@@ -481,7 +481,7 @@ class Test(unittest.TestCase):
 
         ctx = _test([SomeService], 'c=empty')
 
-        assert b''.join(ctx.out_string) == b'CM()'
+        assert ''.join(ctx.out_string) == 'CM()'
 
     def test_nested_flatten(self):
         class CM(ComplexModel):
@@ -505,7 +505,7 @@ class Test(unittest.TestCase):
         ctx = _test([SomeService], '&ccm.i=1&ccm.s=s&ccm.c.i=3&ccm.c.s=cs')
 
         print(ctx.out_string)
-        assert b''.join(ctx.out_string) == b"CCM(i=1, c=CM(i=3, s='cs'), s='s')"
+        assert ''.join(ctx.out_string) == "CCM(i=1, c=CM(i=3, s='cs'), s='s')"
 
     def test_nested_flatten_with_multiple_values_1(self):
         class CM(ComplexModel):
@@ -530,9 +530,9 @@ class Test(unittest.TestCase):
                                    '&ccm[0].c.i=1&ccm[0].c.s=a'
                                    '&ccm[1].c.i=2&ccm[1].c.s=b')
 
-        s = b''.join(ctx.out_string)
+        s = ''.join(ctx.out_string)
 
-        assert s == b"[CCM(i=1, c=CM(i=1, s='a'), s='s'), CCM(c=CM(i=2, s='b'))]"
+        assert s == "[CCM(i=1, c=CM(i=1, s='a'), s='s'), CCM(c=CM(i=2, s='b'))]"
 
     def test_nested_flatten_with_multiple_values_2(self):
         class CM(ComplexModel):
@@ -557,8 +557,8 @@ class Test(unittest.TestCase):
                                    '&ccm.c[0].i=1&ccm.c[0].s=a'
                                    '&ccm.c[1].i=2&ccm.c[1].s=b')
 
-        s = b''.join(list(ctx.out_string))
-        assert s == b"CCM(i=1, c=[CM(i=1, s='a'), CM(i=2, s='b')], s='s')"
+        s = ''.join(list(ctx.out_string))
+        assert s == "CCM(i=1, c=[CM(i=1, s='a'), CM(i=2, s='b')], s='s')"
 
     def test_nested_flatten_with_complex_array(self):
         class CM(ComplexModel):
@@ -583,8 +583,8 @@ class Test(unittest.TestCase):
                                    '&ccm.c[0].i=1&ccm.c[0].s=a'
                                    '&ccm.c[1].i=2&ccm.c[1].s=b')
 
-        s = b''.join(list(ctx.out_string))
-        assert s == b"CCM(i=1, c=[CM(i=1, s='a'), CM(i=2, s='b')], s='s')"
+        s = ''.join(list(ctx.out_string))
+        assert s == "CCM(i=1, c=[CM(i=1, s='a'), CM(i=2, s='b')], s='s')"
 
     def test_nested_2_flatten_with_primitive_array(self):
         class CCM(ComplexModel):
@@ -602,8 +602,8 @@ class Test(unittest.TestCase):
         ctx = _test([SomeService],  'ccm[0].i=1&ccm[0].s=s'
                                    '&ccm[0].c=a'
                                    '&ccm[0].c=b')
-        s = b''.join(list(ctx.out_string))
-        assert s == b"[CCM(i=1, c=['a', 'b'], s='s')]"
+        s = ''.join(list(ctx.out_string))
+        assert s == "[CCM(i=1, c=['a', 'b'], s='s')]"
 
     def test_default(self):
         class CM(ComplexModel):
@@ -619,18 +619,18 @@ class Test(unittest.TestCase):
 
         # s is missing
         ctx = _test([SomeService], 'cm.i=1')
-        s = b''.join(ctx.out_string)
-        assert s == b"CM(i=1, s='default')"
+        s = ''.join(ctx.out_string)
+        assert s == "CM(i=1, s='default')"
 
         # s is None
         ctx = _test([SomeService], 'cm.i=1&cm.s')
-        s = b''.join(ctx.out_string)
-        assert s == b"CM(i=1)"
+        s = ''.join(ctx.out_string)
+        assert s == "CM(i=1)"
 
         # s is empty
         ctx = _test([SomeService], 'cm.i=1&cm.s=')
-        s = b''.join(ctx.out_string)
-        assert s == b"CM(i=1, s='')"
+        s = ''.join(ctx.out_string)
+        assert s == "CM(i=1, s='')"
 
     def test_nested_flatten_with_primitive_array(self):
         class CCM(ComplexModel):
@@ -648,22 +648,22 @@ class Test(unittest.TestCase):
         ctx = _test([SomeService],  'ccm.i=1&ccm.s=s'
                                    '&ccm.c=a'
                                    '&ccm.c=b')
-        s = b''.join(list(ctx.out_string))
-        assert s == b"CCM(i=1, c=['a', 'b'], s='s')"
+        s = ''.join(list(ctx.out_string))
+        assert s == "CCM(i=1, c=['a', 'b'], s='s')"
 
         ctx = _test([SomeService],  'ccm.i=1'
                                    '&ccm.s=s'
                                    '&ccm.c[1]=b'
                                    '&ccm.c[0]=a')
-        s = b''.join(list(ctx.out_string))
-        assert s == b"CCM(i=1, c=['a', 'b'], s='s')"
+        s = ''.join(list(ctx.out_string))
+        assert s == "CCM(i=1, c=['a', 'b'], s='s')"
 
         ctx = _test([SomeService],  'ccm.i=1'
                                    '&ccm.s=s'
                                    '&ccm.c[0]=a'
                                    '&ccm.c[1]=b')
-        s = b''.join(list(ctx.out_string))
-        assert s == b"CCM(i=1, c=['a', 'b'], s='s')"
+        s = ''.join(list(ctx.out_string))
+        assert s == "CCM(i=1, c=['a', 'b'], s='s')"
 
     def test_cookie_parse(self):
         string = 'some_string'
@@ -683,35 +683,23 @@ class Test(unittest.TestCase):
         c = SimpleCookie()
         c['some_field'] = string
 
-        app = Application([SomeService], 'tns',
-            in_protocol=HttpRpc(parse_cookie=True), out_protocol=HttpRpc())
-
-        wsgi_app = WsgiApplication(app)
-
-        req_dict = {
-            'SCRIPT_NAME': '',
-            'QUERY_STRING': '',
-            'PATH_INFO': '/some_call',
-            'REQUEST_METHOD': 'GET',
-            'SERVER_NAME': 'localhost',
-            'SERVER_PORT': "9999",
-            'HTTP_COOKIE': str(c),
-            'wsgi.url_scheme': 'http',
-            'wsgi.version': (1,0),
-            'wsgi.input': StringIO(),
-            'wsgi.errors': StringIO(),
-            'wsgi.multithread': False,
-            'wsgi.multiprocess': False,
-            'wsgi.run_once': True,
-        }
-
-        ret = wsgi_app(req_dict, start_response)
-        print(ret)
-
-        wsgi_app = wsgiref_validator(wsgi_app)
-
-        ret = wsgi_app(req_dict, start_response)
-        print(ret)
+        ''.join(wsgiref_validator(WsgiApplication(Application([SomeService], 'tns',
+            in_protocol=HttpRpc(parse_cookie=True), out_protocol=HttpRpc())))({
+                'SCRIPT_NAME': '',
+                'QUERY_STRING': '',
+                'PATH_INFO': '/some_call',
+                'REQUEST_METHOD': 'GET',
+                'SERVER_NAME': 'localhost',
+                'SERVER_PORT': "9999",
+                'HTTP_COOKIE': str(c),
+                'wsgi.url_scheme': 'http',
+                'wsgi.version': (1,0),
+                'wsgi.input': StringIO(),
+                'wsgi.errors': StringIO(),
+                'wsgi.multithread': False,
+                'wsgi.multiprocess': False,
+                'wsgi.run_once': True,
+            }, start_response))
 
     def test_http_headers(self):
         d = datetime(year=2013, month=1, day=1)
@@ -730,41 +718,30 @@ class Test(unittest.TestCase):
             def some_call(ctx, s):
                 assert s is not None
                 ctx.out_header = ResponseHeader(**{'Set-Cookie': string,
-                                                                  'Expires': d})
+                                                                'Expires': d})
 
         def start_response(code, headers):
-            print(headers)
             assert len([s for s in string if ('Set-Cookie', s) in headers]) == len(string)
             assert dict(headers)['Expires'] == 'Tue, 01 Jan 2013 00:00:00 GMT'
 
-        app = Application([SomeService], 'tns',
-                                  in_protocol=HttpRpc(), out_protocol=HttpRpc())
-        wsgi_app = WsgiApplication(app)
+        ret = ''.join(wsgiref_validator(WsgiApplication(Application([SomeService], 'tns',
+            in_protocol=HttpRpc(), out_protocol=HttpRpc())))({
+                'SCRIPT_NAME': '',
+                'QUERY_STRING': '&s=foo',
+                'PATH_INFO': '/some_call',
+                'REQUEST_METHOD': 'GET',
+                'SERVER_NAME': 'localhost',
+                'SERVER_PORT': "9999",
+                'wsgi.url_scheme': 'http',
+                'wsgi.version': (1,0),
+                'wsgi.input': StringIO(),
+                'wsgi.errors': StringIO(),
+                'wsgi.multithread': False,
+                'wsgi.multiprocess': False,
+                'wsgi.run_once': True,
+            }, start_response))
 
-        req_dict = {
-            'SCRIPT_NAME': '',
-            'QUERY_STRING': '&s=foo',
-            'PATH_INFO': '/some_call',
-            'REQUEST_METHOD': 'GET',
-            'SERVER_NAME': 'localhost',
-            'SERVER_PORT': "9999",
-            'wsgi.url_scheme': 'http',
-            'wsgi.version': (1,0),
-            'wsgi.input': StringIO(),
-            'wsgi.errors': StringIO(),
-            'wsgi.multithread': False,
-            'wsgi.multiprocess': False,
-            'wsgi.run_once': True,
-        }
-
-        ret = wsgi_app(req_dict, start_response)
-        print(list(ret))
-
-        wsgi_app = wsgiref_validator(wsgi_app)
-
-        ret = wsgi_app(req_dict, start_response)
-
-        assert list(ret) == [b'']
+        assert ret == ''
 
 
 class TestHttpPatterns(unittest.TestCase):

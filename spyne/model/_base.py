@@ -21,16 +21,14 @@
 defining models.
 """
 
-from __future__ import print_function
-
 import logging
 logger = logging.getLogger(__name__)
 
 import re
-import decimal
-import threading
 
 import spyne.const.xml_ns
+
+from decimal import Decimal
 
 from spyne import const
 from spyne.util import Break, six
@@ -320,11 +318,7 @@ class ModelBase(object):
           with default options.
 
         * If the value is a string, the value will denote the indexing method
-          used by the database. Should be one of:
-
-            ('btree', 'gin', 'gist', 'hash', 'spgist')
-
-          See: http://www.postgresql.org/docs/9.2/static/indexes-types.html
+          used by the database. See: http://www.postgresql.org/docs/9.2/static/indexes-types.html
 
         * If the value is a tuple of two strings, the first value will denote
           the index name and the second value will denote the indexing method as
@@ -350,10 +344,6 @@ class ModelBase(object):
         order = None
         """An integer that's passed to ``_type_info.insert()`` as first argument
          when not None. ``.append()`` is used otherwise."""
-
-        validate_on_assignment = False
-        """Perform validation on assignment (i.e. all the time) instead of on
-        just serialization"""
 
         polymap = {}
         """A dict of classes that override polymorphic substitions for classes
@@ -450,7 +440,8 @@ class ModelBase(object):
         if cls.__namespace__ is None or len(cls.__namespace__) == 0:
             raise ValueError("You need to explicitly set %r.__namespace__" % cls)
 
-        # print("    resolve ns for %r to %r" % (cls, cls.__namespace__))
+        # too slow
+        # logger.debug("    resolve ns for %r to %r", cls, cls.__namespace__)
 
         if getattr(cls, '__extends__', None) != None:
             cls.__extends__.resolve_namespace(cls.__extends__, default_ns, tags)
@@ -492,7 +483,7 @@ class ModelBase(object):
             return "%s:%s" % (pref, cls.get_element_name())
 
     @classmethod
-    def to_bytes(cls, value):
+    def to_string(cls, value):
         """
         Returns str(value). This should be overridden if this is not enough.
         """
@@ -538,7 +529,7 @@ class ModelBase(object):
             Attributes.sqla_column_args = (), {}
         cls_dict['Attributes'] = Attributes
 
-        # properties get reset every time a new class is defined. So we need
+        # properties get reset everytime a new class is defined. So we need
         # to reinitialize them explicitly.
         for k in ('nillable', '_xml_cloth', '_xml_root_cloth', '_html_cloth',
                                                             '_html_root_cloth'):
@@ -572,12 +563,6 @@ class ModelBase(object):
             if k in ('protocol', 'prot', 'p'):
                 setattr(Attributes, 'prot', v)
 
-            elif k in ('voa', 'validate_on_assignment'):
-                setattr(Attributes, 'validate_on_assignment', v)
-
-            elif k == 'parser':
-                setattr(Attributes, 'parser', staticmethod(v))
-
             elif k in ("doc", "appinfo"):
                 setattr(Annotations, k, v)
 
@@ -605,7 +590,7 @@ class ModelBase(object):
                 Attributes.values_dict = v
 
             elif k == 'max_occurs' and v in ('unbounded', 'inf', float('inf')):
-                setattr(Attributes, k, decimal.Decimal('inf'))
+                setattr(Attributes, k, Decimal('inf'))
 
             else:
                 setattr(Attributes, k, v)
@@ -726,31 +711,31 @@ class SimpleModel(ModelBase):
 
 class PushBase(object):
     def __init__(self, callback=None, errback=None):
-        self.orig_thread = threading.current_thread()
-
         self._cb = callback
         self._eb = errback
 
         self.length = 0
         self.ctx = None
         self.app = None
+        self.response = None
         self.gen = None
         self._cb_finish = None
         self._eb_finish = None
 
-    def _init(self, ctx, gen, _cb_finish, _eb_finish):
+    def _init(self, ctx, response, gen, _cb_finish, _eb_finish):
         self.length = 0
 
         self.ctx = ctx
         self.app = ctx.app
 
+        self.response = response
         self.gen = gen
 
         self._cb_finish = _cb_finish
         self._eb_finish = _eb_finish
 
-    def init(self, ctx, gen, _cb_finish, _eb_finish):
-        self._init(ctx, gen, _cb_finish, _eb_finish)
+    def init(self, ctx, response, gen, _cb_finish, _eb_finish):
+        self._init(ctx, response, gen, _cb_finish, _eb_finish)
         if self._cb is not None:
             return self._cb(self)
 
@@ -806,11 +791,9 @@ class table:
 
     def __init__(self, multi=False, left=None, right=None, backref=None,
             id_backref=None, cascade=False, lazy='select', back_populates=None,
-                       fk_left_deferrable=None, fk_left_initially=None,
-                       fk_right_deferrable=None, fk_right_initially=None,
-                       fk_left_ondelete=None, fk_left_onupdate=None,
-                       fk_right_ondelete=None, fk_right_onupdate=None,
-                       explicit_join=False, order_by=False, single_parent=None):
+                            fk_left_deferrable=None, fk_left_initially=None,
+                            fk_right_deferrable=None, fk_right_initially=None,
+                            explicit_join=False, order_by=False):
         self.multi = multi
         self.left = left
         self.right = right
@@ -823,13 +806,8 @@ class table:
         self.fk_left_initially = fk_left_initially
         self.fk_right_deferrable = fk_right_deferrable
         self.fk_right_initially = fk_right_initially
-        self.fk_left_ondelete = fk_left_ondelete
-        self.fk_left_onupdate = fk_left_onupdate
-        self.fk_right_ondelete = fk_right_ondelete
-        self.fk_right_onupdate = fk_right_onupdate
         self.explicit_join = explicit_join
         self.order_by = order_by
-        self.single_parent = single_parent
 
 
 class json:

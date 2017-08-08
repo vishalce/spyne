@@ -41,13 +41,8 @@ from spyne.test.protocol._test_dictdoc import TDictDocumentTest
 from spyne.test.protocol._test_dictdoc import TDry
 
 
-class TestDictDocument(TDictDocumentTest(json, JsonDocument,
-                                           dumps_kwargs=dict(cls=JsonEncoder))):
-    def dumps(self, o):
-        return super(TestDictDocument, self).dumps(o).encode('utf8')
-
-    def loads(self, o):
-        return super(TestDictDocument, self).loads(o.decode('utf8'))
+TestDictDocument = TDictDocumentTest(json, JsonDocument,
+                                            dumps_kwargs=dict(cls=JsonEncoder))
 
 _dry_sjrpc1 = TDry(json, _SpyneJsonRpc1)
 
@@ -126,7 +121,9 @@ class TestJsonDocument(unittest.TestCase):
 
     def test_invalid_input(self):
         class SomeService(ServiceBase):
-            pass
+            @srpc()
+            def yay():
+                pass
 
         app = Application([SomeService], 'tns',
                                 in_protocol=JsonDocument(),
@@ -135,8 +132,8 @@ class TestJsonDocument(unittest.TestCase):
         server = ServerBase(app)
 
         initial_ctx = MethodContext(server, MethodContext.SERVER)
-        initial_ctx.in_string = [b'{']
-        ctx, = server.generate_contexts(initial_ctx, in_string_charset='utf8')
+        initial_ctx.in_string = ['{']
+        ctx, = server.generate_contexts(initial_ctx)
         assert ctx.in_error.faultcode == 'Client.JsonDecodeError'
 
 
@@ -155,11 +152,7 @@ class TestJsonP(unittest.TestCase):
                                 out_protocol=JsonP(callback_name))
 
         server = NullServer(app, ostr=True)
-        ret = server.service.yay()
-        ret = list(ret)
-        print(ret)
-        assert b''.join(ret) == b''.join((callback_name.encode('utf8'), b'(',
-                                             str(retval).encode('utf8'), b');'))
+        assert ''.join(server.service.yay()) == '%s(%d);' % (callback_name, retval);
 
     def illustrate_wrappers(self):
         from spyne.model.complex import ComplexModel, Array

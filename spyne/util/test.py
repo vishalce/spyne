@@ -40,27 +40,16 @@ def call_wsgi_app(app, mn='some_call', headers=None, body_pairs=None):
     body_pairs = [(k,str(v)) for k,v in body_pairs]
 
     request = {
-        u'QUERY_STRING': urlencode(body_pairs),
-        u'PATH_INFO': '/%s' % mn,
-        u'REQUEST_METHOD': u'GET',
-        u'SERVER_NAME': u'spyne.test',
-        u'SERVER_PORT': u'0',
-        u'wsgi.url_scheme': u'http',
+        'QUERY_STRING': urlencode(body_pairs),
+        'PATH_INFO': '/%s' % mn,
+        'REQUEST_METHOD': 'GET',
+        'SERVER_NAME': 'spyne.test',
+        'SERVER_PORT': '0',
+        'wsgi.url_scheme': 'http',
     }
-
     print(headers)
     request.update(headers)
-
-    out_string = []
-    t = None
-    for s in app(request, _start_response):
-        t = type(s)
-        out_string.append(s)
-
-    if t == bytes:
-        out_string = b''.join(out_string)
-    else:
-        out_string = ''.join(out_string)
+    out_string = ''.join(app(request, _start_response))
 
     return out_string
 
@@ -93,8 +82,8 @@ def show(elt, tn=None, stdout=True):
         except OSError:
             pass
 
-        f = open(join("test_html", fn), 'wb')
+        f = open(join("test_html", fn), 'w')
     else:
-        f = open(fn, 'wb')
+        f = open(fn, 'w')
 
     f.write(html.tostring(elt, pretty_print=True, doctype="<!DOCTYPE html>"))

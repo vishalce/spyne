@@ -86,7 +86,7 @@ class Soap12(Soap11):
 
         subelts = [
             reason,
-            E("{%s}Role" % self.ns_soap_env, inst.faultactor),
+#            E("{%s}Role" % self.ns_soap_env, inst.faultactor),
         ]
 
         return self._fault_to_parent_impl(ctx, cls, inst, parent, ns, subelts)
@@ -106,10 +106,6 @@ class Soap12(Soap11):
                     child_subcode = self.generate_subcode(value, child_subcode)
                 else:
                     child_subcode = self.generate_subcode(value)
-
-            if child_subcode == 0:
-                child_subcode = self.generate_subcode(value)
-
             code.append(child_subcode)
 
             _append(subelts, code)
@@ -129,7 +125,8 @@ class Soap12(Soap11):
     def schema_validation_error_to_parent(self, ctx, cls, inst, parent, ns, **_):
         subelts = [
             E("{%s}Reason" % self.soap_env, inst.faultstring),
-            E("{%s}Role" % self.soap_env, inst.faultactor),
+#            E("{%s}Role" % self.soap_env, inst.faultactor),
+
         ]
 
         return self._fault_to_parent_impl(ctx, cls, inst, parent, ns, subelts)
@@ -139,12 +136,14 @@ class Soap12(Soap11):
 
         code = self.generate_faultcode(element)
         reason = element.find("soap:Reason/soap:Text", namespaces=nsmap).text.strip()
-        role = element.find("soap:Role", namespaces=nsmap)
+        role = None
+#        role = element.find("soap:Role", namespaces=nsmap)
         node = element.find("soap:Node", namespaces=nsmap)
         detail = element.find("soap:Detail", namespaces=nsmap)
         faultactor = ''
         if role:
-            faultactor += role.text.strip()
+	    pass
+#            faultactor += role.text.strip()
         if node:
             faultactor += node.text.strip()
         return cls(faultcode=code, faultstring=reason,

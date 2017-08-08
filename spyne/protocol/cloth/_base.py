@@ -33,7 +33,7 @@ from spyne.util import Break, coroutine
 
 from spyne.protocol.cloth.to_parent import ToParentMixin
 from spyne.protocol.cloth.to_cloth import ToClothMixin
-from spyne.util.six import BytesIO
+from spyne.util.six import StringIO
 
 
 class XmlClothProtocolContext(ProtocolContext):
@@ -59,7 +59,6 @@ class XmlCloth(ToParentMixin, ToClothMixin):
                                                         polymorphic=polymorphic)
 
         self._init_cloth(cloth, cloth_parser)
-        self.developer_mode = False
 
     def get_context(self, parent, transport):
         return XmlClothProtocolContext(parent, transport)
@@ -77,7 +76,7 @@ class XmlCloth(ToParentMixin, ToClothMixin):
         self.event_manager.fire_event('before_serialize', ctx)
 
         if ctx.out_stream is None:
-            ctx.out_stream = BytesIO()
+            ctx.out_stream = StringIO()
             logger.debug("%r %d", ctx.out_stream, id(ctx.out_stream))
 
         if ctx.out_error is not None:
@@ -86,13 +85,12 @@ class XmlCloth(ToParentMixin, ToClothMixin):
             cls = inst.__class__
             name = cls.get_type_name()
 
-            if self.developer_mode:
-                ctx.out_object = (inst,)
-
-                retval = self.incgen(ctx, cls, inst, name)
-            else:
-                with self.docfile(ctx.out_stream) as xf:
-                    retval = self.to_parent(ctx, cls, inst, xf, name)
+            ctx.out_document = E.div()
+            with self.docfile(ctx.out_stream) as xf:
+                # as XmlDocument is not push-ready yet, this is what we do.
+                # this is an ugly hack, bear with me.
+                retval = XmlCloth.HtmlMicroFormat() \
+                                            .to_parent(ctx, cls, inst, xf, name)
 
         else:
             assert message is self.RESPONSE
@@ -130,7 +128,7 @@ class XmlCloth(ToParentMixin, ToClothMixin):
         out_string should not be used.
         """
 
-        if isinstance(ctx.out_stream, BytesIO):
+        if isinstance(ctx.out_stream, StringIO):
             ctx.out_string = [ctx.out_stream.getvalue()]
 
     @coroutine
@@ -143,7 +141,6 @@ class XmlCloth(ToParentMixin, ToClothMixin):
                 ctx.protocol.doctype_written = False
                 ctx.protocol.prot_stack = []
                 ret = self.subserialize(ctx, cls, inst, xf, name)
-
                 if isgenerator(ret):  # Poor man's yield from
                     try:
                         while True:
@@ -196,7 +193,6 @@ class XmlCloth(ToParentMixin, ToClothMixin):
                                                                        **kwargs)
         return False, None
 
-    @coroutine
     def subserialize(self, ctx, cls, inst, parent, name='', **kwargs):
         pstack = ctx.protocol.prot_stack
         pstack.append(self)
@@ -204,31 +200,22 @@ class XmlCloth(ToParentMixin, ToClothMixin):
 
         if self._root_cloth is not None:
             logger.debug("to root cloth")
-            ret = self.to_root_cloth(ctx, cls, inst, self._root_cloth,
+            retval = self.to_root_cloth(ctx, cls, inst, self._root_cloth,
                                                                    parent, name)
 
         elif self._cloth is not None:
             logger.debug("to parent cloth")
-            ret = self.to_parent_cloth(ctx, cls, inst, self._cloth, parent,
+            retval = self.to_parent_cloth(ctx, cls, inst, self._cloth, parent,
                                                                            name)
         else:
             logger.debug("to parent")
-            ret = self.start_to_parent(ctx, cls, inst, parent, name, **kwargs)
+            retval = self.start_to_parent(ctx, cls, inst, parent, name, **kwargs)
 
-        if isgenerator(ret):  # Poor man's yield from
-            try:
-                while True:
-                    sv2 = (yield)
-                    ret.send(sv2)
-
-            except Break as b:
-                try:
-                    ret.throw(b)
-                except StopIteration:
-                    pass
-
+        # FIXME: if retval is a coroutine handle, this will be inconsistent
         pstack.pop()
         logger.debug("pop prot  %r. newlen: %d", self, len(pstack))
+
+        return retval
 
     def decompose_incoming_envelope(self, ctx, message):
         raise NotImplementedError("This is an output-only protocol.")

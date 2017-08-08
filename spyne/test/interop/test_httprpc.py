@@ -91,13 +91,13 @@ class TestHttpRpc(unittest.TestCase):
         url = 'http://localhost:9751/echo_string?s=punk'
         data = urlopen(url).read()
 
-        assert data == b'punk'
+        assert data == 'punk'
 
     def test_echo_integer(self):
         url = 'http://localhost:9751/echo_integer?i=444'
         data = urlopen(url).read()
 
-        assert data == b'444'
+        assert data == '444'
 
     def test_echo_datetime(self):
         dt = datetime.now(pytz.utc).isoformat()
@@ -122,7 +122,6 @@ class TestHttpRpc(unittest.TestCase):
         data = urlopen(url).read()
 
         assert dt == data
-
 
 if __name__ == '__main__':
     unittest.main()

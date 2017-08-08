@@ -28,8 +28,6 @@ from __future__ import absolute_import
 import logging
 logger = logging.getLogger(__name__)
 
-from spyne import ValidationError
-from spyne.util import six
 from spyne.model.binary import BINARY_ENCODING_BASE64
 from spyne.model.primitive import Boolean
 from spyne.model.primitive import Integer
@@ -53,9 +51,6 @@ except ImportError:
     from yaml import SafeDumper
 
 
-NON_NUMBER_TYPES = tuple({list, dict, six.text_type, six.binary_type})
-
-
 class YamlDocument(HierDictDocument):
     """An implementation of the Yaml protocol that uses the PyYaml package.
     See ProtocolBase ctor docstring for its arguments. Yaml-specific arguments
@@ -77,8 +72,6 @@ class YamlDocument(HierDictDocument):
     type = set(HierDictDocument.type)
     type.add('yaml')
 
-    text_based = True
-
     default_binary_encoding = BINARY_ENCODING_BASE64
 
     # for test classes
@@ -92,20 +85,18 @@ class YamlDocument(HierDictDocument):
                                         ordered=False,
                                         polymorphic=False,
                                         # YamlDocument specific
-                                        safe=True,
-                                        out_string_encoding='UTF-8',
-                                        **kwargs):
+                                        safe=True, **kwargs):
 
         super(YamlDocument, self).__init__(app, validator, mime_type,
                 ignore_uncap, ignore_wrappers, complex_as, ordered, polymorphic)
 
-        self._from_unicode_handlers[Double] = self._ret_number
-        self._from_unicode_handlers[Boolean] = self._ret_bool
-        self._from_unicode_handlers[Integer] = self._ret_number
+        self._from_unicode_handlers[Double] = lambda cls, val: val
+        self._from_unicode_handlers[Boolean] = lambda cls, val: val
+        self._from_unicode_handlers[Integer] = lambda cls, val: val
 
-        self._to_unicode_handlers[Double] = self._ret
-        self._to_unicode_handlers[Boolean] = self._ret
-        self._to_unicode_handlers[Integer] = self._ret
+        self._to_unicode_handlers[Double] = lambda cls, val: val
+        self._to_unicode_handlers[Boolean] = lambda cls, val: val
+        self._to_unicode_handlers[Integer] = lambda cls, val: val
 
         self.in_kwargs = dict(kwargs)
         self.out_kwargs = dict(kwargs)
@@ -122,23 +113,6 @@ class YamlDocument(HierDictDocument):
         if not 'default_flow_style' in self.out_kwargs:
             self.out_kwargs['default_flow_style'] = False
 
-        self.out_string_encoding = out_string_encoding
-
-    def _ret(self, _, value):
-        return value
-
-    def _ret_number(self, _, value):
-        if isinstance(value, NON_NUMBER_TYPES):
-            raise ValidationError(value)
-        if value in (True, False):
-            return int(value)
-        return value
-
-    def _ret_bool(self, _, value):
-        if value is None or value in (True, False):
-            return value
-        raise ValidationError(value)
-
     def create_in_document(self, ctx, in_string_encoding=None):
         """Sets ``ctx.in_document``  using ``ctx.in_string``."""
 
@@ -146,30 +120,19 @@ class YamlDocument(HierDictDocument):
             in_string_encoding = 'UTF-8'
 
         try:
-            try:
-                s = b''.join(ctx.in_string).decode(in_string_encoding)
-            except TypeError:
-                s = ''.join(ctx.in_string)
-
-            ctx.in_document = yaml.load(s, **self.in_kwargs)
+            ctx.in_document = yaml.load(b''.join(ctx.in_string).decode(
+                         in_string_encoding), **self.in_kwargs)
 
         except ParserError as e:
             raise Fault('Client.YamlDecodeError', repr(e))
 
     def create_out_string(self, ctx, out_string_encoding='utf8'):
         """Sets ``ctx.out_string`` using ``ctx.out_document``."""
-
-        if self.out_string_encoding is None:
-            ctx.out_string = (yaml.dump(o, **self.out_kwargs)
-                                                      for o in ctx.out_document)
-        else:
-            ctx.out_string = (
-                yaml.dump(o, **self.out_kwargs).encode(self.out_string_encoding)
+        ctx.out_string = (yaml.dump(o, **self.out_kwargs)
                                                       for o in ctx.out_document)
 
 
-
-def _decimal_to_bytes():
+def _decimal_to_string():
     pass
 
 def _decimal_from_string():

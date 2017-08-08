@@ -85,9 +85,6 @@ class JsonEncoder(json.JSONEncoder):
             return list(o)
 
 
-NON_NUMBER_TYPES = tuple({list, dict, six.text_type, six.binary_type})
-
-
 class JsonDocument(HierDictDocument):
     """An implementation of the json protocol that uses simplejson package when
     available, json package otherwise.
@@ -98,7 +95,6 @@ class JsonDocument(HierDictDocument):
     """
 
     mime_type = 'application/json'
-    text_based = True
 
     type = set(HierDictDocument.type)
     type.add('json')
@@ -122,9 +118,9 @@ class JsonDocument(HierDictDocument):
         # with a property.
         self.__message = HierDictDocument.__getattribute__(self, 'message')
 
-        self._from_unicode_handlers[Double] = self._ret_number
-        self._from_unicode_handlers[Boolean] = self._ret_bool
-        self._from_unicode_handlers[Integer] = self._ret_number
+        self._from_unicode_handlers[Double] = self._ret
+        self._from_unicode_handlers[Boolean] = self._ret
+        self._from_unicode_handlers[Integer] = self._ret
 
         self._to_unicode_handlers[Double] = self._ret
         self._to_unicode_handlers[Boolean] = self._ret
@@ -135,18 +131,6 @@ class JsonDocument(HierDictDocument):
 
     def _ret(self, cls, value):
         return value
-
-    def _ret_number(self, cls, value):
-        if isinstance(value, NON_NUMBER_TYPES):
-            raise ValidationError(value)
-        if value in (True, False):
-            return int(value)
-        return value
-
-    def _ret_bool(self, cls, value):
-        if value is None or value in (True, False):
-            return value
-        raise ValidationError(value)
 
     def validate(self, key, cls, val):
         super(JsonDocument, self).validate(key, cls, val)
@@ -183,13 +167,7 @@ class JsonDocument(HierDictDocument):
 
     def create_out_string(self, ctx, out_string_encoding='utf8'):
         """Sets ``ctx.out_string`` using ``ctx.out_document``."""
-        if out_string_encoding is None:
-            ctx.out_string = (json.dumps(o, **self.kwargs)
-                                                      for o in ctx.out_document)
-        else:
-            ctx.out_string = (
-                json.dumps(o, **self.kwargs).encode(out_string_encoding)
-                                                      for o in ctx.out_document)
+        ctx.out_string = (json.dumps(o, **self.kwargs).encode(out_string_encoding) for o in ctx.out_document)
 
 
 class JsonP(JsonDocument):
@@ -210,22 +188,14 @@ class JsonP(JsonDocument):
         super(JsonP, self).__init__(*args, **kwargs)
         self.callback_name = callback_name
 
-    def create_out_string(self, ctx, out_string_encoding='utf8'):
-        super(JsonP, self).create_out_string(ctx,
-                                        out_string_encoding=out_string_encoding)
+    def create_out_string(self, ctx):
+        super(JsonP, self).create_out_string(ctx)
 
-        if out_string_encoding is None:
-            ctx.out_string = chain(
-                    [self.callback_name, '('],
-                        ctx.out_string,
-                    [');'],
-                )
-        else:
-            ctx.out_string = chain(
-                    [self.callback_name.encode(out_string_encoding), b'('],
-                        ctx.out_string,
-                    [b');'],
-                )
+        ctx.out_string = chain(
+                [self.callback_name, '('],
+                    ctx.out_string,
+                [');'],
+            )
 
 class _SpyneJsonRpc1(JsonDocument):
     version = 1

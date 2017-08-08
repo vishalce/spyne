@@ -47,9 +47,7 @@ except ImportError as e:
 from sqlalchemy.sql.type_api import UserDefinedType
 
 from spyne import ComplexModel, ValidationError, Unicode
-
-from spyne.util import six
-from spyne.util.six import binary_type, text_type
+from spyne.util.six import string_types
 from spyne.util.fileproxy import SeekableFileProxy
 
 
@@ -70,7 +68,7 @@ class PGXml(UserDefinedType):
                 return value
             else:
                 return etree.tostring(value, pretty_print=self.pretty_print,
-                                  encoding=self.encoding, xml_declaration=False)
+                                 encoding=self.encoding, xml_declaration=False)
         return process
 
     def result_processor(self, dialect, col_type):
@@ -96,8 +94,7 @@ class PGHtml(UserDefinedType):
 
     def bind_processor(self, dialect):
         def process(value):
-            if isinstance(value, (six.text_type, six.binary_type)) \
-                                                               or value is None:
+            if isinstance(value, string_types) or value is None:
                 return value
             else:
                 return html.tostring(value, pretty_print=self.pretty_print,
@@ -122,18 +119,15 @@ class PGJson(UserDefinedType):
 
     def bind_processor(self, dialect):
         def process(value):
-            if isinstance(value, (text_type, binary_type)) or value is None:
+            if isinstance(value, string_types) or value is None:
                 return value
             else:
-                if six.PY2:
-                    return json.dumps(value, encoding=self.encoding)
-                else:
-                    return json.dumps(value)
+                return json.dumps(value, encoding=self.encoding)
         return process
 
     def result_processor(self, dialect, col_type):
         def process(value):
-            if isinstance(value, (text_type, binary_type)):
+            if isinstance(value, string_types):
                 return json.loads(value)
             else:
                 return value
@@ -188,23 +182,19 @@ class PGObjectJson(UserDefinedType):
                 return self.get_object_as_json(value, self.cls,
                         ignore_wrappers=self.ignore_wrappers,
                         complex_as=self.complex_as,
-                    ).decode('utf8')
+                    )
         return process
 
     def result_processor(self, dialect, col_type):
         from spyne.util.dictdoc import JsonDocument
 
         def process(value):
-            if isinstance(value, six.binary_type):
-                value = value.decode('utf8')
-
-            if isinstance(value, six.text_type):
+            if isinstance(value, string_types):
                 return self.get_dict_as_object(json.loads(value), self.cls,
                         ignore_wrappers=self.ignore_wrappers,
                         complex_as=self.complex_as,
                         protocol=JsonDocument,
                     )
-
             if value is not None:
                 return self.get_dict_as_object(value, self.cls,
                         ignore_wrappers=self.ignore_wrappers,
@@ -235,7 +225,7 @@ class PGFileJson(PGObjectJson):
         def process(value):
             if value is not None:
                 if value.data is not None:
-                    value.path = uuid1().hex
+                    value.path = uuid1().get_hex()
                     fp = join(self.store, value.path)
                     if not abspath(fp).startswith(self.store):
                         raise ValidationError(value.path, "Path %r contains "
@@ -294,18 +284,13 @@ class PGFileJson(PGObjectJson):
         def process(value):
             retval = None
 
-            print(value)
-
-            if isinstance(value, six.text_type):
+            if isinstance(value, string_types):
                 value = json.loads(value)
-            elif isinstance(value, six.binary_type):
-                value = json.loads(value.decode('utf8'))
 
             if value is not None:
                 retval = self.get_dict_as_object(value, self.cls,
                         ignore_wrappers=self.ignore_wrappers,
                         complex_as=self.complex_as)
-
                 retval.store = self.store
                 retval.abspath = path = join(self.store, retval.path)
 

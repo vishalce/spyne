@@ -21,11 +21,12 @@ from twisted.internet.defer import Deferred
 from twisted.internet.interfaces import IPullProducer
 from twisted.web.iweb import UNKNOWN_LENGTH
 
-from zope.interface import implementer
+from zope.interface import implements
 
 
-@implementer(IPullProducer)
 class Producer(object):
+    implements(IPullProducer)
+
     deferred = None
 
     def __init__(self, body, consumer):

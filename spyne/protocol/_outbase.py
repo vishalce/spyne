@@ -22,7 +22,6 @@ from __future__ import print_function
 import logging
 logger = logging.getLogger(__name__)
 
-import re
 import uuid
 import errno
 
@@ -31,7 +30,7 @@ from collections import deque
 from datetime import timedelta, datetime
 from decimal import Decimal as D
 from mmap import mmap, ACCESS_READ
-from time import mktime, strftime
+from time import mktime
 
 try:
     from lxml import etree
@@ -44,7 +43,7 @@ from spyne.protocol._base import ProtocolMixin
 
 from spyne.model import ModelBase, XmlAttribute, SimpleModel, Null, \
     ByteArray, File, ComplexModelBase, AnyXml, AnyHtml, Unicode, Decimal, \
-    Double, Integer, Time, DateTime, Uuid, Duration, Boolean, AnyDict
+    Double, Integer, Time, DateTime, Uuid, Duration, Boolean
 
 from spyne.const.http import HTTP_400, HTTP_401, HTTP_404, HTTP_405, HTTP_413, \
     HTTP_500
@@ -102,55 +101,54 @@ class OutProtocolBase(ProtocolMixin):
         if mime_type is not None:
             self.mime_type = mime_type
 
-        self._to_bytes_handlers = cdict({
-            ModelBase: self.model_base_to_bytes,
-            File: self.file_to_bytes,
-            Time: self.time_to_bytes,
-            Uuid: self.uuid_to_bytes,
-            Null: self.null_to_bytes,
-            Double: self.double_to_bytes,
-            AnyXml: self.any_xml_to_bytes,
-            Unicode: self.unicode_to_bytes,
-            Boolean: self.boolean_to_bytes,
-            Decimal: self.decimal_to_bytes,
-            Integer: self.integer_to_bytes,
-            AnyHtml: self.any_html_to_bytes,
-            DateTime: self.datetime_to_bytes,
-            Duration: self.duration_to_bytes,
-            ByteArray: self.byte_array_to_bytes,
-            Attachment: self.attachment_to_bytes,
-            XmlAttribute: self.xmlattribute_to_bytes,
-            ComplexModelBase: self.complex_model_base_to_bytes,
+        self._to_string_handlers = cdict({
+            ModelBase: self.model_base_to_string,
+            File: self.file_to_string,
+            Time: self.time_to_string,
+            Uuid: self.uuid_to_string,
+            Null: self.null_to_string,
+            Double: self.double_to_string,
+            AnyXml: self.any_xml_to_string,
+            Unicode: self.unicode_to_string,
+            Boolean: self.boolean_to_string,
+            Decimal: self.decimal_to_string,
+            Integer: self.integer_to_string,
+            AnyHtml: self.any_html_to_string,
+            DateTime: self.datetime_to_string,
+            Duration: self.duration_to_string,
+            ByteArray: self.byte_array_to_string,
+            Attachment: self.attachment_to_string,
+            XmlAttribute: self.xmlattribute_to_string,
+            ComplexModelBase: self.complex_model_base_to_string,
         })
 
         self._to_unicode_handlers = cdict({
             ModelBase: self.model_base_to_unicode,
             File: self.file_to_unicode,
-            Time: self.time_to_bytes,
-            Uuid: self.uuid_to_bytes,
-            Null: self.null_to_bytes,
-            Double: self.double_to_bytes,
+            Time: self.time_to_string,
+            Uuid: self.uuid_to_string,
+            Null: self.null_to_string,
+            Double: self.double_to_string,
             AnyXml: self.any_xml_to_unicode,
-            AnyDict: self.any_dict_to_unicode,
             Unicode: self.unicode_to_unicode,
-            Boolean: self.boolean_to_bytes,
-            Decimal: self.decimal_to_bytes,
-            Integer: self.integer_to_bytes,
+            Boolean: self.boolean_to_string,
+            Decimal: self.decimal_to_string,
+            Integer: self.integer_to_string,
             AnyHtml: self.any_html_to_unicode,
             # FIXME: Would we need a to_unicode for localized dates?
-            DateTime: self.datetime_to_bytes,
-            Duration: self.duration_to_bytes,
+            DateTime: self.datetime_to_string,
+            Duration: self.duration_to_string,
             ByteArray: self.byte_array_to_unicode,
             XmlAttribute: self.xmlattribute_to_unicode,
-            ComplexModelBase: self.complex_model_base_to_bytes,
+            ComplexModelBase: self.complex_model_base_to_string,
         })
 
-        self._to_bytes_iterable_handlers = cdict({
-            File: self.file_to_bytes_iterable,
-            ByteArray: self.byte_array_to_bytes_iterable,
-            ModelBase: self.model_base_to_bytes_iterable,
-            SimpleModel: self.simple_model_to_bytes_iterable,
-            ComplexModelBase: self.complex_model_to_bytes_iterable,
+        self._to_string_iterable_handlers = cdict({
+            File: self.file_to_string_iterable,
+            ByteArray: self.byte_array_to_string_iterable,
+            ModelBase: self.model_base_to_string_iterable,
+            SimpleModel: self.simple_model_to_string_iterable,
+            ComplexModelBase: self.complex_model_to_string_iterable,
         })
 
 
@@ -195,18 +193,14 @@ class OutProtocolBase(ProtocolMixin):
 
         self.validator = None
 
-    def to_bytes(self, class_, value, *args, **kwargs):
+    def to_string(self, class_, value, *args, **kwargs):
         if value is None:
             return None
 
-        handler = self._to_bytes_handlers[class_]
+        handler = self._to_string_handlers[class_]
         retval = handler(class_, value, *args, **kwargs)
-
-        # enable this only for testing. we're not as strict for performance
-        # reasons
-        # assert isinstance(retval, six.binary_type), \
-        #                 "AssertionError: %r %r %r handler: %r" % \
-        #                       (type(retval), six.binary_type, retval, handler)
+        if six.PY3 and isinstance(retval, six.text_type):
+            retval = retval.encode('ascii')
         return retval
 
     def to_unicode(self, class_, value, *args, **kwargs):
@@ -214,41 +208,31 @@ class OutProtocolBase(ProtocolMixin):
             return None
 
         handler = self._to_unicode_handlers[class_]
-        retval = handler(class_, value, *args, **kwargs)
+        return handler(class_, value, *args, **kwargs)
 
-        # enable this only for testing. we're not as strict for performance
-        # reasons
-        # assert isinstance(retval, six.text_type), \
-        #                 "AssertionError: %r %r %r handler: %r" % \
-        #                       (type(retval), six.binary_type, retval, handler)
-        return retval
-
-    def to_bytes_iterable(self, class_, value):
+    def to_string_iterable(self, class_, value):
         if value is None:
             return []
 
-        handler = self._to_bytes_iterable_handlers[class_]
+        handler = self._to_string_iterable_handlers[class_]
         return handler(class_, value)
 
-    def null_to_bytes(self, cls, value, **_):
+    def null_to_string(self, cls, value, **_):
         return ""
 
-    def any_xml_to_bytes(self, cls, value, **_):
+    def any_xml_to_string(self, cls, value, **_):
         return etree.tostring(value)
 
     def any_xml_to_unicode(self, cls, value, **_):
         return etree.tostring(value, encoding='unicode')
 
-    def any_dict_to_unicode(self, cls, value, **_):
-        return repr(value)
-
-    def any_html_to_bytes(self, cls, value, **_):
+    def any_html_to_string(self, cls, value, **_):
         return html.tostring(value)
 
     def any_html_to_unicode(self, cls, value, **_):
         return html.tostring(value, encoding='unicode')
 
-    def uuid_to_bytes(self, cls, value, suggested_encoding=None, **_):
+    def uuid_to_string(self, cls, value, suggested_encoding=None, **_):
         attr = self.get_cls_attrs(cls)
         ser_as = attr.serialize_as
         encoding = attr.encoding
@@ -261,19 +245,13 @@ class OutProtocolBase(ProtocolMixin):
             retval = binary_encoding_handlers[encoding]((retval,))
         return retval
 
-    def unicode_to_bytes(self, cls, value, **_):
+    def unicode_to_string(self, cls, value, **_):
         retval = value
 
         cls_attrs = self.get_cls_attrs(cls)
 
-        if isinstance(value, six.text_type):
-            if cls_attrs.encoding is not None:
-                retval = value.encode(cls_attrs.encoding)
-            elif self.default_string_encoding is not None:
-                retval = value.encode(self.default_string_encoding)
-            elif not six.PY2:
-                logger.warning("You need to set either an encoding for %r "
-                               "or a default_string_encoding for %r", cls, self)
+        if cls_attrs.encoding is not None and isinstance(value, six.text_type):
+            retval = value.encode(cls_attrs.encoding)
 
         if cls_attrs.str_format is not None:
             return cls_attrs.str_format.format(value)
@@ -286,20 +264,16 @@ class OutProtocolBase(ProtocolMixin):
         # value can be many things, but definetly not an int
         if isinstance(value, six.integer_types):
             logger.warning("Returning an int where a str is expected! "
-                                                "Not-so-silenty fixing this...")
+                                                       "Silenty fixing this...")
             value = str(value)
 
         retval = value
 
         cls_attrs = self.get_cls_attrs(cls)
-        if isinstance(value, six.binary_type):
-            if cls_attrs.encoding is not None:
-                retval = value.decode(cls_attrs.encoding)
-            if self.default_string_encoding is not None:
-                retval = value.decode(self.default_string_encoding)
-            elif not six.PY2:
-                logger.warning("You need to set either an encoding for %r "
-                               "or a default_string_encoding for %r", cls, self)
+
+        if cls_attrs.encoding is not None and \
+                                             isinstance(value, six.binary_type):
+            retval = value.decode(cls_attrs.encoding)
 
         if cls_attrs.str_format is not None:
             return cls_attrs.str_format.format(value)
@@ -308,7 +282,7 @@ class OutProtocolBase(ProtocolMixin):
 
         return retval
 
-    def decimal_to_bytes(self, cls, value, **_):
+    def decimal_to_string(self, cls, value, **_):
         D(value)  # sanity check
         cls_attrs = self.get_cls_attrs(cls)
 
@@ -319,7 +293,7 @@ class OutProtocolBase(ProtocolMixin):
 
         return str(value)
 
-    def double_to_bytes(self, cls, value, **_):
+    def double_to_string(self, cls, value, **_):
         float(value) # sanity check
         cls_attrs = self.get_cls_attrs(cls)
 
@@ -330,7 +304,7 @@ class OutProtocolBase(ProtocolMixin):
 
         return repr(value)
 
-    def integer_to_bytes(self, cls, value, **_):
+    def integer_to_string(self, cls, value, **_):
         int(value)  # sanity check
         cls_attrs = self.get_cls_attrs(cls)
 
@@ -341,29 +315,29 @@ class OutProtocolBase(ProtocolMixin):
 
         return str(value)
 
-    def time_to_bytes(self, cls, value, **_):
+    def time_to_string(self, cls, value, **_):
         """Returns ISO formatted dates."""
         return value.isoformat()
 
-    def datetime_to_bytes(self, cls, val):
+    def datetime_to_string(self, cls, val):
         sa = self.get_cls_attrs(cls).serialize_as
 
         if sa is None:
-            return self._datetime_to_bytes(cls, val)
+            return self._datetime_to_string(cls, val)
 
         return _datetime_smap[sa](cls, val)
 
-    def duration_to_bytes(self, cls, value, **_):
+    def duration_to_string(self, cls, value, **_):
         if value.days < 0:
             value = -value
             negative = True
         else:
             negative = False
 
-        tot_sec = int(_total_seconds(value))
+        tot_sec = _total_seconds(value)
         seconds = value.seconds % 60
-        minutes = value.seconds // 60
-        hours = minutes // 60
+        minutes = value.seconds / 60
+        hours = minutes / 60
         minutes %= 60
         seconds = float(seconds)
         useconds = value.microseconds
@@ -400,45 +374,28 @@ class OutProtocolBase(ProtocolMixin):
 
         return ''.join(retval)
 
-    def boolean_to_bytes(self, cls, value, **_):
+    def boolean_to_string(self, cls, value, **_):
         return str(bool(value)).lower()
 
-    def byte_array_to_bytes(self, cls, value, suggested_encoding=None, **_):
+    def byte_array_to_string(self, cls, value, suggested_encoding=None, **_):
         encoding = self.get_cls_attrs(cls).encoding
         if encoding is BINARY_ENCODING_USE_DEFAULT:
-            if suggested_encoding is None:
-                encoding = self.binary_encoding
-            else:
-                encoding = suggested_encoding
-
-        retval = binary_encoding_handlers[encoding](value)
-        if encoding is not None and isinstance(retval, six.text_type):
-            retval = retval.encode('ascii')
-
-        return retval
+            encoding = suggested_encoding
+        return binary_encoding_handlers[encoding](value)
 
     def byte_array_to_unicode(self, cls, value, suggested_encoding=None, **_):
         encoding = self.get_cls_attrs(cls).encoding
         if encoding is BINARY_ENCODING_USE_DEFAULT:
-            if suggested_encoding is None:
-                encoding = self.binary_encoding
-            else:
-                encoding = suggested_encoding
-
+            encoding = suggested_encoding
         if encoding is None:
             raise ValueError("Arbitrary binary data can't be serialized to "
-                                                                      "unicode")
+                             "unicode")
+        return binary_encoding_handlers[encoding](value)
 
-        retval = binary_encoding_handlers[encoding](value)
-        if not isinstance(retval, six.text_type):
-            retval = retval.decode('ascii')
-
-        return retval
-
-    def byte_array_to_bytes_iterable(self, cls, value, **_):
+    def byte_array_to_string_iterable(self, cls, value, **_):
         return value
 
-    def file_to_bytes(self, cls, value, suggested_encoding=None):
+    def file_to_string(self, cls, value, suggested_encoding=None):
         """
         :param cls: A :class:`spyne.model.File` subclass
         :param value: Either a sequence of byte chunks or a
@@ -447,41 +404,21 @@ class OutProtocolBase(ProtocolMixin):
 
         encoding = self.get_cls_attrs(cls).encoding
         if encoding is BINARY_ENCODING_USE_DEFAULT:
-            if suggested_encoding is None:
-                encoding = self.binary_encoding
-            else:
-                encoding = suggested_encoding
+            encoding = suggested_encoding
 
         if isinstance(value, File.Value):
             if value.data is not None:
                 return binary_encoding_handlers[encoding](value.data)
 
             if value.handle is not None:
-                # maybe we should have used the sweeping except: here.
-                if hasattr(value.handle, 'fileno'):
-                    if six.PY2:
-                        fileno = value.handle.fileno()
-                        data = (mmap(fileno, 0, access=ACCESS_READ),)
-                    else:
-                        import io
-                        try:
-                            fileno = value.handle.fileno()
-                            data = mmap(fileno, 0, access=ACCESS_READ)
-                        except io.UnsupportedOperation:
-                            data = (value.handle.read(),)
-                else:
-                    data = (value.handle.read(),)
+                assert isinstance(value.handle, file)
 
-                return binary_encoding_handlers[encoding](data)
-
-            if value.path is not None:
-                handle = open(value.path, 'rb')
-                fileno = handle.fileno()
+                fileno = value.handle.fileno()
                 data = mmap(fileno, 0, access=ACCESS_READ)
 
                 return binary_encoding_handlers[encoding](data)
 
-            assert False, "Unhandled file type"
+            assert False
 
         return binary_encoding_handlers[encoding](value)
 
@@ -501,12 +438,9 @@ class OutProtocolBase(ProtocolMixin):
             raise ValueError("Arbitrary binary data can't be serialized to "
                              "unicode.")
 
-        retval = self.file_to_bytes(cls, value, suggested_encoding)
-        if not isinstance(retval, six.text_type):
-            retval = retval.decode('ascii')
-        return retval
+        return self.file_to_string(cls, value, suggested_encoding)
 
-    def file_to_bytes_iterable(self, cls, value, **_):
+    def file_to_string_iterable(self, cls, value, **_):
         if value.data is not None:
             if isinstance(value.data, (list, tuple)) and \
                     isinstance(value.data[0], mmap):
@@ -534,18 +468,18 @@ class OutProtocolBase(ProtocolMixin):
             else:
                 raise InternalError("Error accessing requested file")
 
-    def simple_model_to_bytes_iterable(self, cls, value, **kwargs):
-        retval = self.to_bytes(cls, value, **kwargs)
+    def simple_model_to_string_iterable(self, cls, value, **kwargs):
+        retval = self.to_string(cls, value, **kwargs)
         if retval is None:
-            return (b'',)
+            return ('',)
         return (retval,)
 
-    def complex_model_to_bytes_iterable(self, cls, value, **_):
+    def complex_model_to_string_iterable(self, cls, value, **_):
         if self.ignore_uncap:
             return tuple()
         raise TypeError("This protocol can only serialize primitives.")
 
-    def attachment_to_bytes(self, cls, value, **_):
+    def attachment_to_string(self, cls, value, **_):
         if not (value.data is None):
             # the data has already been loaded, just encode
             # and return the element
@@ -561,136 +495,59 @@ class OutProtocolBase(ProtocolMixin):
 
         return data
 
-    def complex_model_base_to_bytes(self, cls, value, **_):
+    def complex_model_base_to_string(self, cls, value, **_):
         raise TypeError("Only primitives can be serialized to string.")
 
-    def xmlattribute_to_bytes(self, cls, string, **kwargs):
-        return self.to_bytes(cls.type, string, **kwargs)
+    def xmlattribute_to_string(self, cls, string, **kwargs):
+        return self.to_string(cls.type, string, **kwargs)
 
     def xmlattribute_to_unicode(self, cls, string, **kwargs):
         return self.to_unicode(cls.type, string, **kwargs)
 
-    def model_base_to_bytes_iterable(self, cls, value, **kwargs):
-        return cls.to_bytes_iterable(value, **kwargs)
+    def model_base_to_string_iterable(self, cls, value, **kwargs):
+        return cls.to_string_iterable(value, **kwargs)
 
-    def model_base_to_bytes(self, cls, value, **kwargs):
-        return cls.to_bytes(value, **kwargs)
+    def model_base_to_string(self, cls, value, **kwargs):
+        return cls.to_string(value, **kwargs)
 
     def model_base_to_unicode(self, cls, value, **kwargs):
         return cls.to_unicode(value, **kwargs)
 
-    def _get_datetime_format(self, cls_attrs):
-        dt_format = cls_attrs.dt_format
-        if dt_format is None:
-            dt_format = cls_attrs.date_format
-        if dt_format is None:
-            dt_format = cls_attrs.out_format
-        if dt_format is None:
-            dt_format = cls_attrs.format
-
-        return dt_format
-
-    def _datetime_to_bytes(self, cls, value, **_):
+    def _datetime_to_string(self, cls, value, **_):
         cls_attrs = self.get_cls_attrs(cls)
         if cls_attrs.as_timezone is not None and value.tzinfo is not None:
             value = value.astimezone(cls_attrs.as_timezone)
         if not cls_attrs.timezone:
             value = value.replace(tzinfo=None)
 
-        # FIXME: this should be dt_format, all other aliases are to be
+        # FIXME: this should be date_format, all other aliases are to be
         # deprecated
-        dt_format = self._get_datetime_format(cls_attrs)
+        date_format = cls_attrs.date_format
+        if date_format is None:
+            date_format = cls_attrs.out_format
+        if date_format is None:
+            date_format = cls_attrs.format
 
-        if dt_format is None:
+        if date_format is None:
             retval = value.isoformat()
-        elif six.PY2 and isinstance(dt_format, unicode):
-            retval = self.strftime(value, dt_format.encode('utf8')).decode('utf8')
+        elif six.PY2 and isinstance(date_format, unicode):
+            retval = value.strftime(date_format.encode('utf8')).decode('utf8')
         else:
-            retval = self.strftime(value, dt_format)
+            retval = value.strftime(date_format)
 
         # FIXME: must deprecate string_format, this should have been str_format
-        str_format = cls_attrs.string_format
-        if str_format is None:
-            str_format = cls_attrs.str_format
-        if str_format is not None:
-            return str_format.format(value)
+        string_format = cls_attrs.string_format
+        if string_format is None:
+            string_format = cls_attrs.str_format
+        if string_format is not None:
+            return string_format.format(value)
 
         # FIXME: must deprecate interp_format, this should have been just format
-        interp_format = cls_attrs.interp_format
-        if interp_format is not None:
-            return interp_format.format(value)
+        format = cls_attrs.interp_format
+        if format is not None:
+            return format.format(value)
 
         return retval
-
-
-    # Format a datetime through its full proleptic Gregorian date range.
-    # http://code.activestate.com/recipes/306860-proleptic-gregorian-dates-and-strftime-before-1900/
-    # http://stackoverflow.com/a/32206673
-    #
-    # >>> strftime(datetime.date(1850, 8, 2), "%Y/%M/%d was a %A")
-    # '1850/00/02 was a Friday'
-    # >>>
-
-
-    # remove the unsupposed "%s" command.  But don't
-    # do it if there's an even number of %s before the s
-    # because those are all escaped.  Can't simply
-    # remove the s because the result of
-    #  %sY
-    # should be %Y if %s isn't supported, not the
-    # 4 digit year.
-    _illegal_s = re.compile(r"((^|[^%])(%%)*%s)")
-
-    @staticmethod
-    def _findall_datetime(text, substr):
-         # Also finds overlaps
-         sites = []
-         i = 0
-         while 1:
-             j = text.find(substr, i)
-             if j == -1:
-                 break
-             sites.append(j)
-             i=j+1
-         return sites
-
-    # Every 28 years the calendar repeats, except through century leap
-    # years where it's 6 years.  But only if you're using the Gregorian
-    # calendar.  ;)
-
-    @classmethod
-    def strftime(cls, dt, fmt):
-        if cls._illegal_s.search(fmt):
-            raise TypeError("This strftime implementation does not handle %s")
-        if dt.year > 1900:
-            return dt.strftime(fmt)
-
-        year = dt.year
-        # For every non-leap year century, advance by
-        # 6 years to get into the 28-year repeat cycle
-        delta = 2000 - year
-        off = 6*(delta // 100 + delta // 400)
-        year += off
-
-        # Move to around the year 2000
-        year += ((2000 - year) // 28) * 28
-        timetuple = dt.timetuple()
-        s1 = strftime(fmt, (year,) + timetuple[1:])
-        sites1 = cls._findall_datetime(s1, str(year))
-
-        s2 = strftime(fmt, (year+28,) + timetuple[1:])
-        sites2 = cls._findall_datetime(s2, str(year+28))
-
-        sites = []
-        for site in sites1:
-            if site in sites2:
-                sites.append(site)
-
-        s = s1
-        syear = "%4d" % (dt.year,)
-        for site in sites:
-            s = s[:site] + syear + s[site+4:]
-        return s
 
 
 _uuid_serialize = {

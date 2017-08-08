@@ -64,8 +64,7 @@ class TestHtmlMicroFormat(unittest.TestCase):
         server.get_out_object(ctx)
         server.get_out_string(ctx)
 
-        assert b''.join(ctx.out_string) == b'<div class="some_callResponse">' \
-                                   b'<div class="some_callResult">s</div></div>'
+        assert ''.join(ctx.out_string) == '<div class="some_callResponse"><div class="some_callResult">s</div></div>'
 
     def test_multiple_return(self):
         class SomeNotSoComplexModel(ComplexModel):
@@ -91,9 +90,7 @@ class TestHtmlMicroFormat(unittest.TestCase):
         server.get_out_object(ctx)
         server.get_out_string(ctx)
 
-        assert b''.join(ctx.out_string) == b'<div class="some_callResponse">' \
-                               b'<div class="some_callResult0">1</div>' \
-                               b'<div class="some_callResult1">s</div></div>'
+        assert ''.join(ctx.out_string) == '<div class="some_callResponse"><div class="some_callResult0">1</div><div class="some_callResult1">s</div></div>'
 
 
     def test_complex(self):
@@ -143,7 +140,7 @@ class TestHtmlMicroFormat(unittest.TestCase):
         # </div>
         #
 
-        elt = html.fromstring(b''.join(ctx.out_string))
+        elt = html.fromstring(''.join(ctx.out_string))
         print(html.tostring(elt, pretty_print=True))
 
         resp = elt.find_class('some_callResponse')
@@ -194,16 +191,15 @@ class TestHtmlMicroFormat(unittest.TestCase):
         server.get_out_object(ctx)
         server.get_out_string(ctx)
 
-        assert b''.join(ctx.out_string) == (b'<div class="some_callResponse">'
-                               b'<div class="some_callResult">1\n2</div></div>')
+        assert ''.join(ctx.out_string) == ('<div class="some_callResponse">'
+                                '<div class="some_callResult">1\n2</div></div>')
 
         ctx, = server.generate_contexts(initial_ctx)
         server.get_in_object(ctx)
         server.get_out_object(ctx)
         server.get_out_string(ctx)
 
-        assert b''.join(ctx.out_string) == b'<div class="some_callResponse">' \
-                               b'<div class="some_callResult">1\n2</div></div>'
+        assert ''.join(ctx.out_string) == '<div class="some_callResponse"><div class="some_callResult">1\n2</div></div>'
 
     def test_complex_array(self):
         class CM(ComplexModel):
@@ -225,8 +221,7 @@ class TestHtmlMicroFormat(unittest.TestCase):
                                             out_protocol=HtmlMicroFormat())
         server = WsgiApplication(app)
 
-        out_string = call_wsgi_app_kwargs(server,
-                             ccm_c_s='abc', ccm_c_i=123, ccm_i=456, ccm_s='def')
+        out_string = call_wsgi_app_kwargs(server, ccm_c_s='abc', ccm_c_i=123, ccm_i=456, ccm_s='def')
 
         #
         # Here's what this is supposed to return:
@@ -252,7 +247,7 @@ class TestHtmlMicroFormat(unittest.TestCase):
         #
 
         print(out_string)
-        elt = html.fromstring(out_string)
+        elt = html.fromstring(''.join(out_string))
         show(elt, "TestHtmlMicroFormat.test_complex_array")
 
         resp = elt.find_class('some_callResponse')

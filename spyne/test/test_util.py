@@ -5,12 +5,10 @@ from __future__ import print_function
 import unittest
 import pytz
 import decimal
-import json
 
 from pprint import pprint
 from decimal import Decimal as D
 from datetime import datetime
-
 from lxml import etree
 
 from spyne.const import MAX_STRING_FIELD_LENGTH
@@ -147,13 +145,17 @@ class TestCDict(unittest.TestCase):
         class C(object):
             pass
 
-        d = cdict({A: "fun", F: 'zan'})
+        class D:
+            pass
+
+        d = cdict({A: "fun", object: "base", F: 'zan'})
 
         assert d[A] == 'fun'
         assert d[B] == 'fun'
+        assert d[C] == 'base'
         assert d[F] == 'zan'
         try:
-            d[C]
+            d[D]
         except KeyError:
             pass
         else:
@@ -273,34 +275,34 @@ class TestEtreeDict(unittest.TestCase):
     def test_simple(self):
         from lxml.etree import tostring
         from spyne.util.etreeconv import root_dict_to_etree
-        assert tostring(root_dict_to_etree({'a':{'b':'c'}})) == b'<a><b>c</b></a>'
+        assert tostring(root_dict_to_etree({'a':{'b':'c'}})) == '<a><b>c</b></a>'
     
     def test_not_sized(self):
         from lxml.etree import tostring
         from spyne.util.etreeconv import root_dict_to_etree
 
         complex_value = root_dict_to_etree({'a':{'b':1}})
-        self.assertEqual(tostring(complex_value), b'<a><b>1</b></a>',
+        self.assertEqual(tostring(complex_value), '<a><b>1</b></a>',
             "The integer should be properly rendered in the etree")
 
         complex_none = root_dict_to_etree({'a':{'b':None}})
-        self.assertEqual(tostring(complex_none), b'<a><b/></a>',
+        self.assertEqual(tostring(complex_none), '<a><b/></a>',
             "None should not be rendered in the etree")
         
         simple_value = root_dict_to_etree({'a': 1})
-        self.assertEqual(tostring(simple_value), b'<a>1</a>',
+        self.assertEqual(tostring(simple_value), '<a>1</a>',
             "The integer should be properly rendered in the etree")
         
         none_value = root_dict_to_etree({'a': None})
-        self.assertEqual(tostring(none_value), b'<a/>',
+        self.assertEqual(tostring(none_value), '<a/>',
             "None should not be rendered in the etree")
         
         string_value = root_dict_to_etree({'a': 'lol'})
-        self.assertEqual(tostring(string_value), b'<a>lol</a>',
+        self.assertEqual(tostring(string_value), '<a>lol</a>',
             "A string should be rendered as a string")
         
         complex_string_value = root_dict_to_etree({'a': {'b': 'lol'}})
-        self.assertEqual(tostring(complex_string_value), b'<a><b>lol</b></a>',
+        self.assertEqual(tostring(complex_string_value), '<a><b>lol</b></a>',
             "A string should be rendered as a string")
 
 
@@ -346,7 +348,7 @@ class TestYaml(unittest.TestCase):
             b = Decimal
 
         ret = get_object_as_yaml(C(a='burak', b=D(30)), C)
-        assert ret == b"""C:
+        assert ret == """C:
     a: burak
     b: '30'
 """
@@ -354,16 +356,13 @@ class TestYaml(unittest.TestCase):
 class TestJson(unittest.TestCase):
     def test_deser(self):
         class C(ComplexModel):
-            _type_info = [
-                ('a', Unicode),
-                ('b', Decimal),
-            ]
+            a = Unicode
+            b = Decimal
 
         ret = get_object_as_json(C(a='burak', b=D(30)), C)
-        assert ret == b'["burak", "30"]'
+        assert ret == '["burak", "30"]'
         ret = get_object_as_json(C(a='burak', b=D(30)), C, complex_as=dict)
-        assert json.loads(ret.decode('utf8')) == \
-                                        json.loads(u'{"a": "burak", "b": "30"}')
+        assert ret == '{"a": "burak", "b": "30"}'
 
 class TestFifo(unittest.TestCase):
     def test_msgpack_fifo(self):
@@ -371,7 +370,7 @@ class TestFifo(unittest.TestCase):
 
         v1 = [1, 2, 3, 4]
         v2 = [5, 6, 7, 8]
-        v3 = {b"a": 9, b"b": 10, b"c": 11}
+        v3 = {"a": 9, "b": 10, "c": 11}
 
         s1 = msgpack.packb(v1)
         s2 = msgpack.packb(v2)
@@ -382,17 +381,17 @@ class TestFifo(unittest.TestCase):
         unpacker.feed(s2)
         unpacker.feed(s3[:4])
 
-        assert next(iter(unpacker)) == v1
-        assert next(iter(unpacker)) == v2
+        assert iter(unpacker).next() == v1
+        assert iter(unpacker).next() == v2
         try:
-            next(iter(unpacker))
+            iter(unpacker).next()
         except StopIteration:
             pass
         else:
             raise Exception("must fail")
 
         unpacker.feed(s3[4:])
-        assert next(iter(unpacker)) == v3
+        assert iter(unpacker).next() == v3
 
 
 if __name__ == '__main__':

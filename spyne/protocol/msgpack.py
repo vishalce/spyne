@@ -29,15 +29,15 @@ from __future__ import absolute_import
 import logging
 logger = logging.getLogger(__name__)
 
+from spyne.util import six
+
 import msgpack
 
-from spyne import ValidationError
-from spyne.util import six
 from spyne.model.fault import Fault
+from spyne.protocol.dictdoc import HierDictDocument
 from spyne.model.primitive import Double
 from spyne.model.primitive import Boolean
 from spyne.model.primitive import Integer
-from spyne.protocol.dictdoc import HierDictDocument
 
 
 class MessagePackDecodeError(Fault):
@@ -45,21 +45,13 @@ class MessagePackDecodeError(Fault):
         super(MessagePackDecodeError, self).__init__("Client.MessagePackDecodeError", data)
 
 
-NON_NUMBER_TYPES = tuple({list, dict, six.text_type, six.binary_type})
-
-
 class MessagePackDocument(HierDictDocument):
     """An integration class for the msgpack protocol."""
 
     mime_type = 'application/x-msgpack'
-    text_based = False
 
     type = set(HierDictDocument.type)
     type.add('msgpack')
-
-    default_string_encoding = 'UTF-8'
-    from_serstr = HierDictDocument.from_string
-    to_serstr = HierDictDocument.to_bytes
 
     # flags to be used in tests
     _decimal_as_string = True
@@ -71,45 +63,21 @@ class MessagePackDocument(HierDictDocument):
                                         ignore_wrappers=True,
                                         complex_as=dict,
                                         ordered=False,
-                                        polymorphic=False,
-                                        # MessagePackDocument specific
-                                        use_list=False):
+                                        polymorphic=False):
 
         super(MessagePackDocument, self).__init__(app, validator, mime_type,
                 ignore_uncap, ignore_wrappers, complex_as, ordered, polymorphic)
 
-        self.use_list = use_list
+        self._from_unicode_handlers[Double] = self._ret
+        self._from_unicode_handlers[Boolean] = self._ret
+        self._from_unicode_handlers[Integer] = self.integer_from_string
 
-        self._from_string_handlers[Double] = self._ret_number
-        self._from_string_handlers[Boolean] = self._ret_bool
-        self._from_string_handlers[Integer] = self.integer_from_string
+        self._to_unicode_handlers[Double] = self._ret
+        self._to_unicode_handlers[Boolean] = self._ret
+        self._to_unicode_handlers[Integer] = self.integer_to_string
 
-        self._to_bytes_handlers[Double] = self._ret_number
-        self._to_bytes_handlers[Boolean] = self._ret_bool
-        self._to_bytes_handlers[Integer] = self.integer_to_bytes
-
-    def _ret(self, _, value):
+    def _ret(self, cls, value):
         return value
-
-    def _ret_number(self, _, value):
-        if isinstance(value, NON_NUMBER_TYPES):
-            raise ValidationError(value)
-        if value in (True, False):
-            return int(value)
-        return value
-
-    def _ret_bool(self, _, value):
-        if value is None or value in (True, False):
-            return value
-        raise ValidationError(value)
-
-    def get_class_name(self, cls):
-        class_name = cls.get_type_name()
-        if not six.PY2:
-            if not isinstance(class_name, bytes):
-                class_name = class_name.encode('utf8')
-
-        return class_name
 
     def create_in_document(self, ctx, in_string_encoding=None):
         """Sets ``ctx.in_document``,  using ``ctx.in_string``.
@@ -131,33 +99,21 @@ class MessagePackDocument(HierDictDocument):
         except ValueError as e:
             raise MessagePackDecodeError(''.join(e.args))
 
-    def gen_method_request_string(self, ctx):
-        """Uses information in context object to return a method_request_string.
-
-        Returns a string in the form of "{namespaces}method name".
-        """
-
-        mrs, = ctx.in_body_doc.keys()
-        if six.PY3:
-            mrs = mrs.decode('utf8')
-
-        return '{%s}%s' % (self.app.interface.get_tns(), mrs)
-
     def create_out_string(self, ctx, out_string_encoding='utf8'):
         ctx.out_string = (msgpack.packb(o) for o in ctx.out_document)
 
     def integer_from_string(self, cls, value):
-        if isinstance(value, (six.text_type, six.binary_type)):
+        if isinstance(value, six.string_types):
             return super(MessagePackDocument, self).integer_from_string(cls, value)
         else:
             return value
 
-    def integer_to_bytes(self, cls, value, **_):
+    def integer_to_string(self, cls, value):
         # if it's inside the range msgpack can deal with
         if -1<<63 <= value < 1<<64:
             return value
         else:
-            return super(MessagePackDocument, self).integer_to_bytes(cls, value)
+            return super(MessagePackDocument, self).integer_to_string(cls, value)
 
 
 class MessagePackRpc(MessagePackDocument):
@@ -182,8 +138,7 @@ class MessagePackRpc(MessagePackDocument):
 
         # TODO: Use feed api
         try:
-            ctx.in_document = msgpack.unpackb(b''.join(ctx.in_string),
-                                                         use_list=self.use_list)
+            ctx.in_document = msgpack.unpackb(b''.join(ctx.in_string))
         except ValueError as e:
             raise MessagePackDecodeError(''.join(e.args))
 
@@ -208,11 +163,6 @@ class MessagePackRpc(MessagePackDocument):
         else:
             msgtype, msgid, msgname_or_error, msgparams = ctx.in_document
 
-        if not six.PY2:
-            if isinstance(msgname_or_error, bytes):
-                msgname_or_error = msgname_or_error.decode(
-                                                   self.default_string_encoding)
-
         if msgtype == MessagePackRpc.MSGPACK_REQUEST:
             assert message == MessagePackRpc.REQUEST
 
@@ -226,7 +176,7 @@ class MessagePackRpc(MessagePackDocument):
             raise MessagePackDecodeError("Unknown message type %r" % msgtype)
 
         ctx.method_request_string = '{%s}%s' % (self.app.interface.get_tns(),
-                                                               msgname_or_error)
+                                                                        msgname_or_error)
 
         ctx.in_header_doc = None # MessagePackRpc does not seem to have Header support
 

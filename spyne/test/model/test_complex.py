@@ -104,29 +104,6 @@ Level1.resolve_namespace(Level1, __name__)
 
 
 class TestComplexModel(unittest.TestCase):
-    def test_validate_on_assignment_fail(self):
-        class C(ComplexModel):
-            i = Integer(voa=True)
-
-        try:
-            C().i = 'a'
-        except ValueError:
-            pass
-        else:
-            raise Exception('must fail with ValueError')
-
-    def test_validate_on_assignment_success(self):
-        class C(ComplexModel):
-            i = Integer(voa=True)
-
-        c = C()
-
-        c.i = None
-        assert c.i is None
-
-        c.i = 5
-        assert c.i == 5
-
     def test_simple_class(self):
         a = Address()
         a.street = '123 happy way'
@@ -343,10 +320,10 @@ class TestXmlAttribute(unittest.TestCase):
             __namespace__ = 'myns'
             Data = ByteArray
 
-        test_string = b'yo test data'
+        test_string = 'yo test data'
         b64string = b64encode(test_string)
 
-        gg = PacketNonAttribute(Data=[test_string])
+        gg = PacketNonAttribute(Data=test_string)
 
         element = etree.Element('test')
         Soap11().to_parent(None, PacketNonAttribute, gg, element, gg.get_namespace())
@@ -354,7 +331,7 @@ class TestXmlAttribute(unittest.TestCase):
         element = element[0]
         #print etree.tostring(element, pretty_print=True)
         data = element.find('{%s}Data' % gg.get_namespace()).text
-        self.assertEquals(data, b64string.decode('ascii'))
+        self.assertEquals(data, b64string)
         s1 = Soap11().from_element(None, PacketNonAttribute, element)
         assert s1.Data[0] == test_string
 
@@ -363,17 +340,16 @@ class TestXmlAttribute(unittest.TestCase):
             __namespace__ = 'myns'
             Data = XmlAttribute(ByteArray, use='required')
 
-        test_string = b'yo test data'
+        test_string = 'yo test data'
         b64string = b64encode(test_string)
-        gg = PacketAttribute(Data=[test_string])
+        gg = PacketAttribute(Data=test_string)
 
         element = etree.Element('test')
         Soap11().to_parent(None, PacketAttribute, gg, element, gg.get_namespace())
 
         element = element[0]
         print(etree.tostring(element, pretty_print=True))
-        print(element.attrib)
-        self.assertEquals(element.attrib['Data'], b64string.decode('ascii'))
+        self.assertEquals(element.attrib['Data'], b64string)
 
         s1 = Soap11().from_element(None, PacketAttribute, element)
         assert s1.Data[0] == test_string

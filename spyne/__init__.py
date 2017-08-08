@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
 #
 
-__version__ = '2.13.0'
+__version__ = '2.12.11'
 
 from pytz import utc as LOCAL_TZ
 from decimal import Decimal as D
@@ -52,7 +52,6 @@ from spyne.error import RequestTooLongError
 from spyne.error import RequestNotAllowed
 from spyne.error import ArgumentError
 from spyne.error import InvalidInputError
-from spyne.error import MissingFieldError
 from spyne.error import ValidationError
 from spyne.error import InternalError
 from spyne.error import ResourceNotFoundError

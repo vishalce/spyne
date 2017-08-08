@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 import re
 RE_HTTP_ARRAY_INDEX = re.compile("\\[([0-9]+)\\]")
 
-from collections import defaultdict, Iterable as AbcIterable
+from collections import defaultdict
 
 from spyne.util import six
 from spyne.error import ValidationError
@@ -42,17 +42,6 @@ class HierDictDocument(DictDocument):
     Implement ``create_in_document()`` and ``create_out_string()`` to use this.
     """
 
-    from_serstr = DictDocument.from_unicode
-    to_serstr = DictDocument.to_unicode
-
-    def get_class_name(self, cls):
-        class_name = cls.get_type_name()
-        if not six.PY2:
-            if isinstance(class_name, bytes):
-                class_name = class_name.decode('utf8')
-
-        return class_name
-
     def deserialize(self, ctx, message):
         assert message in (self.REQUEST, self.RESPONSE)
 
@@ -70,10 +59,8 @@ class HierDictDocument(DictDocument):
         if body_class:
             # assign raw result to its wrapper, result_message
             doc = ctx.in_body_doc
-
-            class_name = self.get_class_name(body_class)
             if self.ignore_wrappers:
-                doc = doc.get(class_name, None)
+                doc = doc.get(body_class.get_type_name(), None)
             result_message = self._doc_to_object(body_class, doc,
                                                                  self.validator)
             ctx.in_object = result_message
@@ -119,8 +106,7 @@ class HierDictDocument(DictDocument):
         if inst is None and self.get_cls_attrs(cls).nullable:
             pass
 
-        elif issubclass(cls, Unicode) and not isinstance(inst,(six.text_type,
-                                                               six.binary_type)):
+        elif issubclass(cls, Unicode) and not isinstance(inst, six.string_types):
             raise ValidationError((key, inst))
 
     def _from_dict_value(self, key, cls, inst, validator):
@@ -142,14 +128,14 @@ class HierDictDocument(DictDocument):
                 inst = None
 
             if (validator is self.SOFT_VALIDATION
-                                        and isinstance(inst, six.string_types)
-                                        and not cls.validate_string(cls, inst)):
+                                and isinstance(inst, six.string_types)
+                                and not cls.validate_string(cls, inst)):
                 raise ValidationError((key, inst))
 
             if issubclass(cls, (ByteArray, File, Uuid)):
-                retval = self.from_serstr(cls, inst, self.binary_encoding)
+                retval = self.from_unicode(cls, inst, self.binary_encoding)
             else:
-                retval = self.from_serstr(cls, inst)
+                retval = self.from_unicode(cls, inst)
 
         # validate native type
         if validator is self.SOFT_VALIDATION and \
@@ -169,9 +155,6 @@ class HierDictDocument(DictDocument):
             retval = []
             (serializer,) = cls._type_info.values()
 
-            if not isinstance(doc, AbcIterable):
-                raise ValidationError(doc)
-
             for i, child in enumerate(doc):
                 retval.append(self._from_dict_value(i, serializer, child,
                                                                     validator))
@@ -189,10 +172,6 @@ class HierDictDocument(DictDocument):
 
             subclasses = cls.get_subclasses()
             (class_name, doc), = doc.items()
-            if not six.PY2:
-                if isinstance(class_name, bytes):
-                    class_name = class_name.decode('utf8')
-
             if cls.get_type_name() != class_name and subclasses is not None \
                                                         and len(subclasses) > 0:
                 for subcls in subclasses:
@@ -200,7 +179,7 @@ class HierDictDocument(DictDocument):
                         break
                 else:
                     raise ValidationError(class_name,
-                        "Class name %%r is not registered as a subclass of %r" %
+                         "Class name %%r is not registered as a subclass of %r" %
                                                             cls.get_type_name())
 
                 if not self.issubclass(subcls, cls):
@@ -232,8 +211,6 @@ class HierDictDocument(DictDocument):
 
         # parse input to set incoming data to related attributes.
         for k, v in items:
-            if not six.PY2 and isinstance(k, bytes):
-                k = k.decode('utf8')
             member = flat_type_info.get(k, None)
             if member is None:
                 member, k = flat_type_info.alt.get(k, (None, k))
@@ -336,14 +313,14 @@ class HierDictDocument(DictDocument):
         if issubclass(cls, File) and isinstance(inst, cls.Attributes.type):
             retval = self._complex_to_doc(cls.Attributes.type, inst)
             if self.complex_as is dict and not self.ignore_wrappers:
-                retval = next(iter(retval.values()))
+                retval = iter(retval.values()).next()
 
             return retval
 
         if issubclass(cls, (ByteArray, File, Uuid)):
-            return self.to_serstr(cls, inst, self.binary_encoding)
+            return self.to_string(cls, inst, self.binary_encoding)
 
-        return self.to_serstr(cls, inst)
+        return self.to_unicode(cls, inst)
 
     def _complex_to_doc(self, cls, inst):
         if self.complex_as is list or \

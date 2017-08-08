@@ -52,7 +52,6 @@ from spyne.util import six
 from spyne.util import memoize
 from spyne.util import memoize_id
 from spyne.util import sanitize_args
-from spyne.util.color import YEL
 from spyne.util.meta import Prepareable
 from spyne.util.odict import odict
 from spyne.util.six import add_metaclass, with_metaclass, string_types
@@ -153,9 +152,9 @@ class XmlData(XmlModifier):
     def marshall(cls, prot, name, value, parent_elt):
         if value is not None:
             if len(parent_elt) == 0:
-                parent_elt.text = prot.to_bytes(cls.type, value)
+                parent_elt.text = prot.to_string(cls.type, value)
             else:
-                parent_elt[-1].tail = prot.to_bytes(cls.type, value)
+                parent_elt[-1].tail = prot.to_string(cls.type, value)
 
     @classmethod
     def get_type_name(cls):
@@ -336,20 +335,10 @@ def _get_type_info(cls, cls_name, cls_bases, cls_dict, attrs):
 
         class_fields = []
         for k, v in cls_dict.items():
-            if k.startswith('_'):
-                continue
-
-            if isinstance(v, tuple) and len(v) == 1 and \
-                                 _get_spyne_type(cls_name, k, v[0]) is not None:
-                logger.warning(YEL("There seems to be a stray comma in the"
-                                   "definition of '%s.%s'.", cls_name, k))
-
-            v = _get_spyne_type(cls_name, k, v)
-
-            if v is None:
-                continue
-
-            class_fields.append((k, v))
+            if not k.startswith('_'):
+                v = _get_spyne_type(cls_name, k, v)
+                if v is not None:
+                    class_fields.append((k, v))
 
         _type_info.update(class_fields)
 
@@ -473,8 +462,7 @@ def _sanitize_sqlalchemy_parameters(cls_dict, attrs):
 
 
 def _sanitize_type_info(cls_name, _type_info, _type_info_alt):
-    """Make sure _type_info contents are sane"""
-
+    # make sure _type_info contents are sane
     for k, v in _type_info.items():
         if not isinstance(k, six.string_types):
             raise ValueError("Invalid class key", k)
@@ -640,21 +628,9 @@ class ComplexModelMeta(with_metaclass(Prepareable, type(ModelBase))):
         assert len(self._type_info) == len(new_type_info)
         self._type_info.keys()[:] = new_type_info
 
-        for k, v in self._type_info.items():
-            if not v.Attributes.validate_on_assignment:
-                continue
-
-            def _get_prop(self):
-                return self.__dict__[k]
-
-            def _set_prop(self, val):
-                if not (val is None or isinstance(val, v.Value)):
-                    raise ValueError("Invalid value %r, "
-                                 "should be an instance of %r" % (val, v.Value))
-
-                self.__dict__[k] = val
-
-            setattr(self, k, property(_get_prop, _set_prop))
+        tn = self.Attributes.table_name
+        meta = self.Attributes.sqla_metadata
+        t = self.Attributes.sqla_table
 
         methods = _gen_methods(self, cls_dict)
         if len(methods) > 0:
@@ -664,10 +640,6 @@ class ComplexModelMeta(with_metaclass(Prepareable, type(ModelBase))):
         if methods is not None:
             assert isinstance(methods, _MethodsDict)
             methods.sanitize(self)
-
-        tn = self.Attributes.table_name
-        meta = self.Attributes.sqla_metadata
-        t = self.Attributes.sqla_table
 
         # For spyne objects reflecting an existing db table
         if tn is None:
@@ -832,12 +804,7 @@ class ComplexModelBase(ModelBase):
                 def_val = attr.default
                 def_fac = attr.default_factory
 
-                cls_getattr_ret = getattr(self.__class__, k, None)
-                if isinstance(cls_getattr_ret, property) and \
-                                                   cls_getattr_ret.fset is None:
-                    continue  # we skip read-only properties
-
-                elif def_fac is not None:
+                if def_fac is not None:
                     if six.PY2 and hasattr(def_fac, 'im_func'):
                         # unbound-method error workaround. huh.
                         def_fac = def_fac.im_func
@@ -854,19 +821,14 @@ class ComplexModelBase(ModelBase):
                 elif hasattr(cls, '_sa_class_manager'):
                     # except the attributes that sqlalchemy doesn't know about
                     if v.Attributes.exc_table:
-                        # FIXME: These hide real exceptions!
                         try:
                             setattr(self, k, None)
-                        except AttributeError:
+                        except AttributeError: # it could be a read-only property
                             pass
 
                     elif issubclass(v, ComplexModelBase) and \
                                                   v.Attributes.store_as is None:
-                        # FIXME: These hide real exceptions!
-                        try:
-                            setattr(self, k, None)
-                        except AttributeError:
-                            pass
+                        setattr(self, k, None)
                 else:
                     setattr(self, k, None)
 
@@ -1341,8 +1303,6 @@ class Array(ComplexModelBase):
 
         del kwargs['serializer_attrs']
 
-        logger.debug('Pass serializer attrs %r', serializer_attrs)
-
         serializer, = cls._type_info.values()
         return cls(serializer.customize(**serializer_attrs)).customize(**kwargs)
 
@@ -1415,17 +1375,6 @@ class Iterable(Array):
         logged = False
 
     class Push(PushBase):
-        """The push interface to the `Iterable`.
-
-        Anything append()'ed to a `Push` instance is serialized and written to
-        outgoing stream immediately.
-
-        When using Twisted, Push callbacks are called from the reactor thread if
-        the instantiation is done in a reactor thread. Otherwise, callbacks are
-        called by `deferToThread`. Make sure to avoid relying on thread-local
-        stuff as `deferToThread` is not guaranteed to restore original thread
-        context.
-        """
         pass
 
 

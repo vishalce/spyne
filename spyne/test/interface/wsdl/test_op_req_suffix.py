@@ -183,8 +183,7 @@ class TestOperationRequestSuffix(unittest.TestCase):
                             output_name))
 
         # check soap operation succeeded
-        resp = app.post('/', soap_input_body,
-                                    content_type='applicaion/xml; charset=utf8')
+        resp = app.post('/', soap_input_body)
         self.assert_response_ok(resp)
 
     def test_soap_with_suffix(self):
@@ -223,8 +222,7 @@ class TestOperationRequestSuffix(unittest.TestCase):
                                                 '"times": 2}}'
 
         # check json operation succeeded
-        resp = app.post('/', json_input_body,
-                                  content_type='application/json; charset=utf8')
+        resp = app.post('/', json_input_body)
         self.assert_response_ok(resp)
 
     def test_json_with_suffix(self):

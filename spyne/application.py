@@ -208,11 +208,11 @@ class Application(object):
                 ctx.service_class.event_manager.fire_event(
                                                'method_exception_object', ctx)
 
-        # we don't catch BaseException because we actually don't want to catch
+        # we don't catch BaseException because we're not interested in
         # "system-exiting" exceptions. See:
         # https://docs.python.org/2/library/exceptions.html#exceptions.Exception
         except Exception as e:
-            logger_server.critical(e, **{'exc_info': 1})
+            logger_server.exception(e)
 
             ctx.out_error = Fault('Server', get_fault_string_from_exception(e))
 

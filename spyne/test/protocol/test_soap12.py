@@ -90,7 +90,7 @@ class TestSoap12(unittest.TestCase):
             'QUERY_STRING': '',
             'PATH_INFO': '/call',
             'REQUEST_METHOD': 'POST',
-            'CONTENT_TYPE': 'text/xml; charset=utf8',
+            'CONTENT_TYPE': 'text/xml',
             'wsgi.input': BytesIO(req)
         }, start_response, "http://null")))
 

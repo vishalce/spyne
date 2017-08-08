@@ -169,7 +169,7 @@ class TestSqlAlchemy(unittest.TestCase):
         session = self.Session()
 
         for i in range(1, 10):
-            key = str(i).encode()
+            key = str(i)
             m = hashlib.md5()
             m.update(key)
             value = m.hexdigest()
@@ -366,7 +366,7 @@ class TestSpyne2Sqlalchemy(unittest.TestCase):
             j = Unicode(64)
 
         t = SomeClass.Attributes.sqla_table
-        assert isinstance(t.c['j'].type, sqlalchemy.String)
+        assert isinstance(t.c['j'].type, sqlalchemy.Unicode)
 
         for c in t.constraints:
             if isinstance(c, UniqueConstraint):

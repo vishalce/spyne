@@ -26,12 +26,11 @@ import re
 import pytz
 import uuid
 
-from math import modf
-from time import strptime, mktime
 from datetime import timedelta, time, datetime, date
+from math import modf
 from decimal import Decimal as D, InvalidOperation
-
 from pytz import FixedOffset
+from time import strptime, mktime
 
 try:
     from lxml import etree
@@ -117,6 +116,9 @@ class InProtocolBase(ProtocolMixin):
 
         fsh = {
             Null: self.null_from_string,
+            Time: self.time_from_string,
+            Date: self.date_from_string,
+            Uuid: self.uuid_from_string,
             File: self.file_from_string,
             Array: self.array_from_string,
             Double: self.double_from_string,
@@ -125,7 +127,10 @@ class InProtocolBase(ProtocolMixin):
             Boolean: self.boolean_from_string,
             Integer: self.integer_from_string,
             Unicode: self.unicode_from_string,
+            Decimal: self.decimal_from_string,
             AnyHtml: self.any_html_from_string,
+            DateTime: self.datetime_from_string,
+            Duration: self.duration_from_string,
             ByteArray: self.byte_array_from_string,
             EnumBase: self.enum_base_from_string,
             ModelBase: self.model_base_from_string,
@@ -137,23 +142,8 @@ class InProtocolBase(ProtocolMixin):
         self._from_string_handlers = cdict(fsh)
         self._from_unicode_handlers = cdict(fsh)
 
-        self._from_string_handlers[Date] = self.date_from_string
-        self._from_string_handlers[Time] = self.time_from_string
-        self._from_string_handlers[Uuid] = self.uuid_from_string
-        self._from_string_handlers[Decimal] = self.decimal_from_string
-        self._from_string_handlers[DateTime] = self.datetime_from_string
-        self._from_string_handlers[Duration] = self.duration_from_string
-
-        self._from_unicode_handlers[Date] = self.date_from_unicode
-        self._from_unicode_handlers[Uuid] = self.uuid_from_unicode
-        self._from_unicode_handlers[Time] = self.time_from_unicode
-        self._from_unicode_handlers[Decimal] = self.decimal_from_unicode
-        self._from_unicode_handlers[DateTime] = self.datetime_from_unicode
-        self._from_unicode_handlers[Duration] = self.duration_from_unicode
-
-
         self._datetime_dsmap = {
-            None: self._datetime_from_unicode,
+            None: self._datetime_from_string,
             'sec': self._datetime_from_sec,
             'sec_float': self._datetime_from_sec_float,
             'msec': self._datetime_from_msec,
@@ -230,6 +220,9 @@ class InProtocolBase(ProtocolMixin):
         if string is None:
             return None
 
+        if six.PY3:
+            assert isinstance(string, bytes)
+
         if isinstance(string, six.string_types) and \
                            len(string) == 0 and class_.Attributes.empty_is_none:
             return None
@@ -241,10 +234,8 @@ class InProtocolBase(ProtocolMixin):
         if string is None:
             return None
 
-        #if six.PY3:
-        #    assert isinstance(string, str), \
-        #        "Invalid type passed to `from_unicode`: {}".format(
-        #                                         (class_, type(string), string))
+        if six.PY3:
+            assert isinstance(string, str)
 
         if isinstance(string, six.string_types) and len(string) == 0 and \
                                                 class_.Attributes.empty_is_none:
@@ -271,7 +262,7 @@ class InProtocolBase(ProtocolMixin):
             else:
                 raise
 
-    def uuid_from_unicode(self, cls, string, suggested_encoding=None):
+    def uuid_from_string(self, cls, string, suggested_encoding=None):
         attr = self.get_cls_attrs(cls)
         ser_as = attr.serialize_as
         encoding = attr.encoding
@@ -284,30 +275,7 @@ class InProtocolBase(ProtocolMixin):
         if ser_as in ('bytes', 'bytes_le'):
             retval, = binary_decoding_handlers[encoding](string)
 
-        try:
-            retval = _uuid_deserialize[ser_as](retval)
-        except ValueError as e:
-            raise ValidationError(e)
-
-        return retval
-
-    def uuid_from_string(self, cls, string, suggested_encoding=None, **kwargs):
-        attr = self.get_cls_attrs(cls)
-        ser_as = attr.serialize_as
-        encoding = attr.encoding
-
-        if encoding is None:
-            encoding = suggested_encoding
-
-        retval = string
-
-        if ser_as in ('bytes', 'bytes_le'):
-            retval, = binary_decoding_handlers[encoding](string)
-
-        try:
-            retval = _uuid_deserialize[ser_as](retval)
-        except ValueError as e:
-            raise ValidationError(e)
+        retval = _uuid_deserialize[ser_as](retval)
 
         return retval
 
@@ -335,7 +303,7 @@ class InProtocolBase(ProtocolMixin):
 
         return retval
 
-    def decimal_from_unicode(self, cls, string):
+    def decimal_from_string(self, cls, string):
         cls_attrs = self.get_cls_attrs(cls)
         if cls_attrs.max_str_len is not None and len(string) > \
                                                      cls_attrs.max_str_len:
@@ -347,10 +315,6 @@ class InProtocolBase(ProtocolMixin):
         except InvalidOperation as e:
             raise ValidationError(string, "%%r: %r" % e)
 
-    def decimal_from_string(self, cls, string):
-        return self.decimal_from_unicode(cls,
-                                    string.decode(self.default_string_encoding))
-
     def double_from_string(self, cls, string):
         try:
             return float(string)
@@ -359,20 +323,19 @@ class InProtocolBase(ProtocolMixin):
 
     def integer_from_string(self, cls, string):
         cls_attrs = self.get_cls_attrs(cls)
-
-        if isinstance(string, (six.text_type, six.binary_type)) and \
+        if isinstance(string, six.string_types) and \
                                     cls_attrs.max_str_len is not None and \
                                     len(string) > cls_attrs.max_str_len:
             raise ValidationError(string,
-                                         "Integer %%r longer than %d characters"
-                                                        % cls_attrs.max_str_len)
+                                    "Integer %%r longer than %d characters"
+                                                   % cls_attrs.max_str_len)
 
         try:
             return int(string)
         except ValueError:
             raise ValidationError(string, "Could not cast %r to integer")
 
-    def time_from_unicode(self, cls, string):
+    def time_from_string(self, cls, string):
         """Expects ISO formatted times."""
 
         match = _time_re.match(string)
@@ -390,11 +353,7 @@ class InProtocolBase(ProtocolMixin):
         return time(int(fields['hr']), int(fields['min']),
                                                    int(fields['sec']), microsec)
 
-    def time_from_string(self, cls, string):
-        return self.time_from_unicode(cls,
-                                    string.decode(self.default_string_encoding))
-
-    def date_from_unicode_iso(self, cls, string):
+    def date_from_string_iso(self, cls, string):
         """This is used by protocols like SOAP who need ISO8601-formatted dates
         no matter what.
         """
@@ -423,7 +382,7 @@ class InProtocolBase(ProtocolMixin):
     def model_base_from_string(self, cls, value):
         return cls.from_string(value)
 
-    def datetime_from_unicode_iso(self, cls, string):
+    def datetime_from_string_iso(self, cls, string):
         astz = self.get_cls_attrs(cls).as_timezone
 
         match = cls._utc_re.match(string)
@@ -455,10 +414,6 @@ class InProtocolBase(ProtocolMixin):
 
         raise ValidationError(string)
 
-    def datetime_from_unicode(self, cls, string):
-        serialize_as = self.get_cls_attrs(cls).serialize_as
-        return self._datetime_dsmap[serialize_as](cls, string)
-
     def datetime_from_string(self, cls, string):
         serialize_as = self.get_cls_attrs(cls).serialize_as
         return self._datetime_dsmap[serialize_as](cls, string)
@@ -476,21 +431,7 @@ class InProtocolBase(ProtocolMixin):
                 raise ValidationError(string,
                                          "%%r: %s" % repr(e).replace("%", "%%"))
 
-    def date_from_unicode(self, cls, string):
-        try:
-            d = datetime.strptime(string, self.get_cls_attrs(cls).format)
-            return date(d.year, d.month, d.day)
-
-        except ValueError as e:
-            match = cls._offset_re.match(string)
-            if match:
-                return date(int(match.group('year')),
-                            int(match.group('month')), int(match.group('day')))
-            else:
-                # the message from ValueError is quite nice already
-                raise ValidationError(e.message, "%s")
-
-    def duration_from_unicode(self, cls, string):
+    def duration_from_string(self, cls, string):
         duration = _duration_re.match(string).groupdict(0)
         if duration is None:
             raise ValidationError("time data '%s' does not match regex '%s'" %
@@ -513,10 +454,6 @@ class InProtocolBase(ProtocolMixin):
             delta *= -1
 
         return delta
-
-    def duration_from_string(self, cls, string):
-        return self.duration_from_unicode(cls,
-                                    string.decode(self.default_string_encoding))
 
     def boolean_from_string(self, cls, string):
         return string.lower() in ('true', '1')
@@ -555,42 +492,30 @@ class InProtocolBase(ProtocolMixin):
     def xmlattribute_from_string(self, cls, value):
         return self.from_string(cls.type, value)
 
-    def _datetime_from_unicode(self, cls, string):
+    def _datetime_from_string(self, cls, string):
         cls_attrs = self.get_cls_attrs(cls)
+        date_format = cls_attrs.date_format
+        if date_format is None:
+            date_format = cls_attrs.out_format
+        if date_format is None:
+            date_format = cls_attrs.format
 
-        # get parser
-        parser = cls_attrs.parser
-
-        # get date_format
-        dt_format = cls_attrs.dt_format
-        if dt_format is None:
-            dt_format = cls_attrs.date_format
-        if dt_format is None:
-            dt_format = cls_attrs.out_format
-        if dt_format is None:
-            dt_format = cls_attrs.format
-
-        # parse the string
-        if parser is not None:
-            retval = parser(self, cls, string)
-
-        elif dt_format is not None:
+        if date_format is None:
+            retval = self.datetime_from_string_iso(cls, string)
+        else:
+            astz = cls_attrs.as_timezone
             if six.PY2:
                 # FIXME: perhaps it should encode to string's encoding instead
                 # of utf8 all the time
-                if isinstance(dt_format, unicode):
-                    dt_format = dt_format.encode('utf8')
+                if isinstance(date_format, unicode):
+                    date_format = date_format.encode('utf8')
                 if isinstance(string, unicode):
                     string = string.encode('utf8')
 
-            retval = datetime.strptime(string, dt_format)
+            retval = datetime.strptime(string, date_format)
 
-            astz = cls_attrs.as_timezone
             if astz:
                 retval = retval.astimezone(cls_attrs.as_time_zone)
-
-        else:
-            retval = self.datetime_from_unicode_iso(cls, string)
 
         return retval
 

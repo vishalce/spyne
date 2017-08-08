@@ -22,8 +22,6 @@ from __future__ import absolute_import
 import logging
 logger = logging.getLogger(__name__)
 
-from collections import OrderedDict
-
 import msgpack
 
 from spyne import MethodContext, TransportContext
@@ -31,13 +29,13 @@ from spyne.auxproc import process_contexts
 from spyne.error import ValidationError
 from spyne.model import Fault
 from spyne.server import ServerBase
-from spyne.util.six import binary_type
+from spyne.util.six import string_types
 
 
 def _process_v1_msg(prot, msg):
     header = None
     body = msg[1]
-    if not isinstance(body, binary_type):
+    if not isinstance(body, string_types):
         raise ValidationError(body, "Body must be a bytestream.")
 
     if len(msg) > 2:
@@ -60,7 +58,6 @@ class MessagePackTransportContext(TransportContext):
 
         self.in_header = None
         self.protocol = None
-        self.inreq_queue = OrderedDict()
 
 
 class MessagePackMethodContext(MethodContext):
@@ -86,10 +83,7 @@ class MessagePackTransportBase(ServerBase):
         }
 
     def produce_contexts(self, msg):
-        """Produce contexts based on incoming message.
-
-        :param msg: Parsed request in this format: `[IN_REQUEST, body, header]`
-        """
+        """msg = [IN_REQUEST, body, header]"""
 
         if not isinstance(msg, list):
             logger.debug("Incoming request: %r", msg)
@@ -97,25 +91,21 @@ class MessagePackTransportBase(ServerBase):
 
         if not len(msg) >= 2:
             logger.debug("Incoming request: %r", msg)
-            raise ValidationError(len(msg), "Request must have at least two "
-                                                          "elements. It has %r")
+            raise ValidationError(msg, "Request must have at least two elements.")
 
         if not isinstance(msg[0], int):
             logger.debug("Incoming request: %r", msg)
-            raise ValidationError(msg[0], "Request version must be an integer. "
-                                                                    "It was %r")
+            raise ValidationError(msg[0], "Request version must be an integer.")
 
         processor = self._version_map.get(msg[0], None)
         if processor is None:
             logger.debug("Incoming request: %r", msg)
-            raise ValidationError(msg[0], "Unknown request type %r")
+            raise ValidationError(msg[0], "Unknown request type")
 
         initial_ctx = processor(self, msg)
         contexts = self.generate_contexts(initial_ctx)
 
-        p_ctx, others = contexts[0], contexts[1:]
-
-        return p_ctx, others
+        return contexts[0], contexts[1:]
 
     def process_contexts(self, contexts):
         p_ctx, others = contexts[0], contexts[1:]
@@ -155,7 +145,6 @@ class MessagePackTransportBase(ServerBase):
     def pack(self, ctx):
         ctx.out_string = msgpack.packb([self.OUT_RESPONSE_NO_ERROR,
                                                       ''.join(ctx.out_string)]),
-
 
 class MessagePackServerBase(MessagePackTransportBase):
     """Contains the transport protocol logic but not the transport itself.

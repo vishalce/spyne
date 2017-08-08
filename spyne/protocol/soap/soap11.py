@@ -40,8 +40,6 @@ logger_invalid = logging.getLogger(__name__ + ".invalid")
 
 import cgi
 
-from itertools import chain
-
 import spyne.const.xml_ns as ns
 
 from lxml import etree
@@ -49,12 +47,15 @@ from lxml.etree import XMLSyntaxError
 from lxml.etree import XMLParser
 
 from spyne import BODY_STYLE_WRAPPED
-from spyne.util import six
+
 from spyne.const.xml_ns import DEFAULT_NS
-from spyne.const.http import HTTP_405, HTTP_500
+from spyne.const.http import HTTP_405
+from spyne.const.http import HTTP_500
 from spyne.error import RequestNotAllowed
 from spyne.model.fault import Fault
-from spyne.model.primitive import Date, Time, DateTime
+from spyne.model.primitive import Date
+from spyne.model.primitive import Time
+from spyne.model.primitive import DateTime
 from spyne.protocol.xml import XmlDocument
 from spyne.protocol.soap.mime import collapse_swa
 from spyne.server.http import HttpTransportContext
@@ -92,13 +93,7 @@ def _from_soap(in_envelope_xml, xmlids=None, **kwargs):
 
 
 def _parse_xml_string(xml_string, parser, charset=None):
-    xml_string = iter(xml_string)
-    chunk = next(xml_string)
-    if isinstance(chunk, six.binary_type):
-        string = b''.join(chain( (chunk,), xml_string ))
-    else:
-        string = ''.join(chain( (chunk,), xml_string ))
-
+    string = b''.join(xml_string)
     if charset:
         string = string.decode(charset)
 
@@ -179,8 +174,8 @@ class Soap11(XmlDocument):
         self._to_unicode_handlers[Time] = lambda cls, value: value.isoformat()
         self._to_unicode_handlers[DateTime] = lambda cls, value: value.isoformat()
 
-        self._from_unicode_handlers[Date] = self.date_from_unicode_iso
-        self._from_unicode_handlers[DateTime] = self.datetime_from_unicode_iso
+        self._from_unicode_handlers[Date] = self.date_from_string_iso
+        self._from_unicode_handlers[DateTime] = self.datetime_from_string_iso
 
     def create_in_document(self, ctx, charset=None):
         if isinstance(ctx.transport, HttpTransportContext):
@@ -207,13 +202,17 @@ class Soap11(XmlDocument):
 
         ctx.in_document = envelope_xml
 
-        if body_document.tag == '{%s}Fault' % self.ns_soap_env:
+        if body_document is not None and body_document.tag == '{%s}Fault' % self.ns_soap_env:
             ctx.in_body_doc = body_document
 
         else:
             ctx.in_header_doc = header_document
             ctx.in_body_doc = body_document
-            ctx.method_request_string = ctx.in_body_doc.tag
+            if body_document is not None:
+                ctx.method_request_string = ctx.in_body_doc.tag
+            else:
+                ctx.method_request_string = ""
+
             self.validate_body(ctx, message)
 
     def deserialize(self, ctx, message):
@@ -286,7 +285,25 @@ class Soap11(XmlDocument):
         ctx.out_document = etree.Element('{%s}Envelope' % self.ns_soap_env,
                                                                     nsmap=nsmap)
         if ctx.out_error is not None:
-            # FIXME: There's no way to alter soap response headers for the user.
+            # FIXME: There's no way to alter soap response headers for the user
+            #VJ's change begins here
+	    if ctx.out_header is not None:
+		    header_message_class = None
+		    if message is self.RESPONSE:
+		        header_message_class = ctx.descriptor.out_header
+		    ctx.out_header_doc = soap_header_elt = etree.SubElement(
+		        ctx.out_document, '{%s}Header' % self.ns_soap_env)
+		    if isinstance(ctx.out_header, (list, tuple)):
+		        out_headers = ctx.out_header
+		    else:
+		        out_headers = (ctx.out_header,)
+		    for header_class, out_header in zip(header_message_class, out_headers):
+		        self.to_parent(ctx,
+		                       header_class, out_header,
+		                       soap_header_elt,
+		                       header_class.get_namespace(),
+		                       header_class.get_type_name())
+	    #VJ's change Ends here
             ctx.out_body_doc = out_body_doc = etree.SubElement(ctx.out_document,
                             '{%s}Body' % self.ns_soap_env, nsmap=nsmap)
             self.to_parent(ctx, ctx.out_error.__class__, ctx.out_error,
